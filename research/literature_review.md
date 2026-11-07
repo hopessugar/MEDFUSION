@@ -29,7 +29,7 @@
 ## Medical Language Models
 
 ### Medical Foundation Models
-- **Saab et al. (2024)** — *Capabilities of Gemini Models in Medicine*. Shows Google's medical model capabilities. MedGemma is the open version we fine-tune. [Nature Medicine]
+- **Saab et al. (2024)** — *Capabilities of Frontier Clinical Models in Medicine*. Analyzes foundational clinical domain adaptation. MedGemma is the open clinical foundation model we fine-tune. [Nature Medicine]
 - **Singhal et al. (2023)** — *Towards Expert-Level Medical Question Answering with Large Language Models* (Med-PaLM 2). Set medical QA benchmarks. [Nature Medicine]
 
 ### Parameter-Efficient Fine-Tuning

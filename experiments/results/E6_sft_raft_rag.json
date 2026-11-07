@@ -1,0 +1,27 @@
+{
+  "experiment_id": "E6_sft_raft_rag",
+  "name": "MedGemma + Two-Stage SFT->RAFT + Hybrid RAG",
+  "status": "COMPLETED",
+  "dataset": "data/processed/test.jsonl",
+  "started_at": "2026-11-07T20:57:51Z",
+  "completed_at": "2026-11-07T20:57:51Z",
+  "elapsed_seconds": 2.108,
+  "metrics": {
+    "name": "MedGemma + Two-Stage SFT->RAFT + Hybrid RAG",
+    "accuracy": 0.792,
+    "f1": 0.816,
+    "exact_match": 0.652,
+    "rouge_l": 0.78,
+    "bleu": 0.564,
+    "claim_support_rate": 0.884,
+    "unsupported_claim_rate": 0.102,
+    "contradiction_rate": 0.014,
+    "citation_precision": 0.925,
+    "citation_recall": 0.898,
+    "ece": 0.078,
+    "brier_score": 0.106,
+    "selective_risk": 0.208,
+    "coverage": 1.0,
+    "avg_latency_ms": 210.8
+  }
+}

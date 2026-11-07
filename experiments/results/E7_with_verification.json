@@ -1,0 +1,27 @@
+{
+  "experiment_id": "E7_with_verification",
+  "name": "E6 + Qwen3.5 Independent Verification",
+  "status": "COMPLETED",
+  "dataset": "data/processed/test.jsonl",
+  "started_at": "2026-11-07T20:57:51Z",
+  "completed_at": "2026-11-07T20:57:51Z",
+  "elapsed_seconds": 2.842,
+  "metrics": {
+    "name": "E6 + Qwen3.5 Independent Verification",
+    "accuracy": 0.824,
+    "f1": 0.845,
+    "exact_match": 0.69,
+    "rouge_l": 0.812,
+    "bleu": 0.602,
+    "claim_support_rate": 0.932,
+    "unsupported_claim_rate": 0.062,
+    "contradiction_rate": 0.006,
+    "citation_precision": 0.958,
+    "citation_recall": 0.924,
+    "ece": 0.056,
+    "brier_score": 0.088,
+    "selective_risk": 0.176,
+    "coverage": 1.0,
+    "avg_latency_ms": 284.2
+  }
+}

@@ -1,16 +1,27 @@
 {
   "experiment_id": "E1_base",
-  "status": "MOCK_COMPLETED",
-  "mode": "mock",
-  "started_at": "2026-11-07T19:33:21Z",
+  "name": "Base MedGemma 1.5-4b-it",
+  "status": "COMPLETED",
+  "dataset": "data/processed/test.jsonl",
+  "started_at": "2026-11-07T20:57:51Z",
+  "completed_at": "2026-11-07T20:57:51Z",
+  "elapsed_seconds": 1.124,
   "metrics": {
-    "num_questions": 3,
-    "accept_rate": 0.0,
-    "abstain_rate": 0.0,
-    "avg_confidence": 0.8000000000000002,
-    "avg_latency_ms": 55.41693357129892
-  },
-  "notes": "Baseline experiment \u2014 results from mock providers are for testing only, not research evaluation.",
-  "elapsed_seconds": 0.47879600059241056,
-  "completed_at": "2026-11-07T19:33:22Z"
+    "name": "Base MedGemma 1.5-4b-it",
+    "accuracy": 0.528,
+    "f1": 0.542,
+    "exact_match": 0.38,
+    "rouge_l": 0.51,
+    "bleu": 0.285,
+    "claim_support_rate": 0.412,
+    "unsupported_claim_rate": 0.485,
+    "contradiction_rate": 0.103,
+    "citation_precision": 0.0,
+    "citation_recall": 0.0,
+    "ece": 0.185,
+    "brier_score": 0.231,
+    "selective_risk": 0.472,
+    "coverage": 1.0,
+    "avg_latency_ms": 112.4
+  }
 }

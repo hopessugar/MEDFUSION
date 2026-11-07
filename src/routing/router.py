@@ -48,11 +48,14 @@ class RouterConfig(BaseModel):
         default_factory=lambda: [
             "dose",
             "dosage",
+            "doses",
             "contraindication",
+            "contraindications",
             "contraindicated",
             "toxicity",
             "lethal",
             "interaction",
+            "interactions",
             "overdose",
             "anaphylaxis",
             "black box",
@@ -64,7 +67,9 @@ class RouterConfig(BaseModel):
             "fatal",
             "emergency",
             "adverse effect",
+            "adverse effects",
             "side effect",
+            "side effects",
         ]
     )
 

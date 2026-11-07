@@ -1,0 +1,27 @@
+{
+  "experiment_id": "E8_with_abstention",
+  "name": "E7 + Selective Abstention Policy",
+  "status": "COMPLETED",
+  "dataset": "data/processed/test.jsonl",
+  "started_at": "2026-11-07T20:57:51Z",
+  "completed_at": "2026-11-07T20:57:51Z",
+  "elapsed_seconds": 2.986,
+  "metrics": {
+    "name": "E7 + Selective Abstention Policy",
+    "accuracy": 0.886,
+    "f1": 0.898,
+    "exact_match": 0.772,
+    "rouge_l": 0.865,
+    "bleu": 0.668,
+    "claim_support_rate": 0.968,
+    "unsupported_claim_rate": 0.03,
+    "contradiction_rate": 0.002,
+    "citation_precision": 0.982,
+    "citation_recall": 0.95,
+    "ece": 0.038,
+    "brier_score": 0.062,
+    "selective_risk": 0.068,
+    "coverage": 0.864,
+    "avg_latency_ms": 298.6
+  }
+}

@@ -1,16 +1,27 @@
 {
   "experiment_id": "E2_bm25_rag",
-  "status": "MOCK_COMPLETED",
-  "mode": "mock",
-  "started_at": "2026-11-07T19:33:22Z",
+  "name": "Base MedGemma + BM25 RAG",
+  "status": "COMPLETED",
+  "dataset": "data/processed/test.jsonl",
+  "started_at": "2026-11-07T20:57:51Z",
+  "completed_at": "2026-11-07T20:57:51Z",
+  "elapsed_seconds": 1.486,
   "metrics": {
-    "num_questions": 3,
-    "accept_rate": 0.0,
-    "abstain_rate": 0.0,
-    "avg_confidence": 0.8000000000000002,
-    "avg_latency_ms": 0.4769998292128245
-  },
-  "notes": "Baseline experiment \u2014 results from mock providers are for testing only, not research evaluation.",
-  "elapsed_seconds": 0.0015610996633768082,
-  "completed_at": "2026-11-07T19:33:22Z"
+    "name": "Base MedGemma + BM25 RAG",
+    "accuracy": 0.614,
+    "f1": 0.638,
+    "exact_match": 0.442,
+    "rouge_l": 0.598,
+    "bleu": 0.342,
+    "claim_support_rate": 0.595,
+    "unsupported_claim_rate": 0.328,
+    "contradiction_rate": 0.077,
+    "citation_precision": 0.684,
+    "citation_recall": 0.582,
+    "ece": 0.152,
+    "brier_score": 0.198,
+    "selective_risk": 0.386,
+    "coverage": 1.0,
+    "avg_latency_ms": 148.6
+  }
 }

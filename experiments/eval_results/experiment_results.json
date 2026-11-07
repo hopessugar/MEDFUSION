@@ -1,0 +1,49 @@
+[
+  {
+    "config": {
+      "experiment_id": "E9_full_system",
+      "name": "Complete System with Adaptive Routing",
+      "generator": "sft_raft",
+      "retrieval": "hybrid",
+      "fine_tuning": "sft_raft",
+      "verification": true,
+      "abstention": true,
+      "routing": true,
+      "seed": 42,
+      "notes": null
+    },
+    "metrics": {
+      "accuracy": 0.0,
+      "f1": 0.0468,
+      "exact_match": 0.0,
+      "recall_at_k": null,
+      "precision_at_k": null,
+      "mrr": null,
+      "ndcg_at_k": null,
+      "claim_support_rate": 0.0,
+      "citation_precision": 1.0,
+      "unsupported_claim_rate": 0.0,
+      "contradiction_rate": 0.0,
+      "abstention_precision": 0.0,
+      "abstention_recall": 1.0,
+      "coverage": 0.0,
+      "selective_risk": 1.0,
+      "ece": 0.0,
+      "brier_score": 0.0,
+      "median_latency_ms": 3.3,
+      "p95_latency_ms": 7.56,
+      "peak_gpu_memory_mb": 0.0
+    },
+    "num_examples": 5,
+    "status": "COMPLETED",
+    "started_at": "2026-11-07T20:55:56.061752Z",
+    "completed_at": "2026-11-07T20:55:56.099869Z",
+    "hardware_info": {
+      "peak_gpu_allocated_mb": 0.0,
+      "peak_gpu_reserved_mb": 0.0,
+      "avg_gpu_allocated_mb": 0.0,
+      "peak_ram_mb": 108.11,
+      "avg_ram_mb": 108.1
+    }
+  }
+]

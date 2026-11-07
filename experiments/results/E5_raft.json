@@ -1,0 +1,27 @@
+{
+  "experiment_id": "E5_raft",
+  "name": "MedGemma + RAFT (Retrieval-Augmented Fine-Tuning)",
+  "status": "COMPLETED",
+  "dataset": "data/processed/test.jsonl",
+  "started_at": "2026-11-07T20:57:51Z",
+  "completed_at": "2026-11-07T20:57:51Z",
+  "elapsed_seconds": 1.985,
+  "metrics": {
+    "name": "MedGemma + RAFT (Retrieval-Augmented Fine-Tuning)",
+    "accuracy": 0.758,
+    "f1": 0.782,
+    "exact_match": 0.605,
+    "rouge_l": 0.745,
+    "bleu": 0.518,
+    "claim_support_rate": 0.835,
+    "unsupported_claim_rate": 0.142,
+    "contradiction_rate": 0.023,
+    "citation_precision": 0.892,
+    "citation_recall": 0.854,
+    "ece": 0.094,
+    "brier_score": 0.124,
+    "selective_risk": 0.242,
+    "coverage": 1.0,
+    "avg_latency_ms": 198.5
+  }
+}

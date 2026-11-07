@@ -11,11 +11,11 @@
 
 | Metric | Result |
 |---|---|
-| **Total Tests Discovered** | 63 |
-| **Total Tests Passed** | 63 |
+| **Total Tests Discovered** | 74 |
+| **Total Tests Passed** | 74 |
 | **Total Tests Failed** | 0 |
 | **Total Tests Skipped** | 0 |
-| **Execution Duration** | 3.20 seconds |
+| **Execution Duration** | 3.97 seconds |
 | **Pass Rate** | **100.0%** |
 | **Warnings** | 1 (Scipy optimizer deprecation in scikit-learn logistic regression) |
 

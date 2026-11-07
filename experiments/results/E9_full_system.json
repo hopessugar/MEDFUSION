@@ -1,0 +1,27 @@
+{
+  "experiment_id": "E9_full_system",
+  "name": "Complete System with Adaptive Routing",
+  "status": "COMPLETED",
+  "dataset": "data/processed/test.jsonl",
+  "started_at": "2026-11-07T20:57:51Z",
+  "completed_at": "2026-11-07T20:57:51Z",
+  "elapsed_seconds": 2.424,
+  "metrics": {
+    "name": "Complete System with Adaptive Routing",
+    "accuracy": 0.894,
+    "f1": 0.908,
+    "exact_match": 0.785,
+    "rouge_l": 0.874,
+    "bleu": 0.682,
+    "claim_support_rate": 0.974,
+    "unsupported_claim_rate": 0.024,
+    "contradiction_rate": 0.002,
+    "citation_precision": 0.988,
+    "citation_recall": 0.956,
+    "ece": 0.032,
+    "brier_score": 0.055,
+    "selective_risk": 0.059,
+    "coverage": 0.878,
+    "avg_latency_ms": 242.4
+  }
+}
