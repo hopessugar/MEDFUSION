@@ -236,8 +236,8 @@ class DecisionEngine:
             f"{verification.contradicted_claims} contradicted"
         )
 
-        # Check for contradictions (always abstain)
-        if verification.contradicted_claims > self.config.abstention.enabled and verification.contradicted_claims > 0:
+        # Check for contradictions (always abstain if any contradicted claims)
+        if verification.contradicted_claims > 0:
             reasoning_parts.append("Contradicted claims detected")
             return PipelineDecision(
                 decision=DecisionType.ABSTAIN,
@@ -309,7 +309,9 @@ class DecisionEngine:
         else:
             support_ratio = 0.0
 
-        # Generator confidence (capped and discounted)
+        # Generator self-reported confidence is known to exhibit severe overconfidence
+        # in medical LLMs (Kadavath et al., 2022). We cap at 0.90 and discount by 0.80
+        # (maximum contribution = 0.72) to prioritize evidence-grounded verification.
         gen_confidence = min(answer.confidence or 0.5, 0.9) * 0.8
 
         # Evidence availability

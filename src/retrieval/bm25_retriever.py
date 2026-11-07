@@ -200,6 +200,10 @@ class BM25Retriever:
     def load_index(self, path: Union[str, Path]) -> None:
         """Load a serialized BM25 index from disk.
 
+        Security Note:
+            This method deserializes data using `pickle`. Only load index files
+            originating from trusted, secure sources to prevent arbitrary code execution.
+
         Args:
             path: Source file path.
         """

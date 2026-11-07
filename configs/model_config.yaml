@@ -1,3 +1,6 @@
+# NOTE: Legacy / alternative model configuration reference.
+# The primary model configuration loaded by AppConfig and PipelineService is `configs/models.yaml`.
+#
 # MedFusion-RAFT Model Configurations
 
 generator:

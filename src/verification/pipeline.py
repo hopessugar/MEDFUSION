@@ -78,6 +78,10 @@ class VerificationPipeline:
             self.config.use_entailment_checking
             and self.entailment_checker is None
         ):
+            logger.warning(
+                "No entailment checker provided; falling back to MockEntailmentChecker. "
+                "For production use, pass an EntailmentChecker instance with a real NLI model."
+            )
             self.entailment_checker = MockEntailmentChecker(
                 self.config.entailment_config
             )

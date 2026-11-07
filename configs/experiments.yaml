@@ -6,6 +6,7 @@ experiments:
     fine_tuning: null
     verification: false
     abstention: false
+    routing: false
 
   E2_bm25_rag:
     name: "Base MedGemma + BM25 RAG"
@@ -14,6 +15,7 @@ experiments:
     fine_tuning: null
     verification: false
     abstention: false
+    routing: false
 
   E3_hybrid_rag:
     name: "Base MedGemma + Hybrid RAG"
@@ -22,6 +24,7 @@ experiments:
     fine_tuning: null
     verification: false
     abstention: false
+    routing: false
 
   E4_sft:
     name: "MedGemma + SFT"
@@ -30,6 +33,7 @@ experiments:
     fine_tuning: "sft"
     verification: false
     abstention: false
+    routing: false
 
   E5_raft:
     name: "MedGemma + RAFT"
@@ -38,6 +42,7 @@ experiments:
     fine_tuning: "raft"
     verification: false
     abstention: false
+    routing: false
 
   E6_sft_raft_rag:
     name: "MedGemma + SFT + RAFT + Hybrid RAG"
@@ -46,6 +51,7 @@ experiments:
     fine_tuning: "sft_raft"
     verification: false
     abstention: false
+    routing: false
 
   E7_with_verification:
     name: "E6 + Qwen Verification"
@@ -54,6 +60,7 @@ experiments:
     fine_tuning: "sft_raft"
     verification: true
     abstention: false
+    routing: false
 
   E8_with_abstention:
     name: "E7 + Selective Abstention"
@@ -62,6 +69,7 @@ experiments:
     fine_tuning: "sft_raft"
     verification: true
     abstention: true
+    routing: false
 
   E9_full_system:
     name: "Complete System with Adaptive Routing"

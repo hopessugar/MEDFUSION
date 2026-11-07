@@ -286,7 +286,12 @@ class MedCPTRetriever:
         logger.info("Dense retriever saved to %s", target_dir)
 
     def load_index(self, path: Union[str, Path]) -> None:
-        """Load FAISS index and passage metadata from disk."""
+        """Load FAISS index and passage metadata from disk.
+
+        Security Note:
+            Metadata and fallback indices are deserialized via `pickle`. Only load
+            files from trusted and authenticated filesystem locations.
+        """
         target_dir = Path(path).resolve()
         idx_file = target_dir / "dense.index"
         meta_file = target_dir / "dense_passages.pkl"

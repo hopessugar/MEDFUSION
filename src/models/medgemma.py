@@ -166,7 +166,10 @@ class MedGemmaProvider(BaseGeneratorProvider):
 
     def _apply_chat_template(self, prompt: str) -> str:
         """Format prompt with Gemma turn tokens or tokenizer chat template."""
-        messages = [{"role": "user", "content": f"{self.system_prompt}\n\n{prompt}"}]
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
         if hasattr(self._tokenizer, "apply_chat_template") and self._tokenizer.chat_template:
             try:
                 return self._tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
