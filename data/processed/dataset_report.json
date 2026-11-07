@@ -1,0 +1,23 @@
+{
+  "total": 15,
+  "with_gold_passage": 15,
+  "with_reference_answer": 15,
+  "answerability_dist": {
+    "answerable": 10,
+    "partially_answerable": 4,
+    "unanswerable": 1
+  },
+  "specialty_dist": {
+    "endocrinology": 4,
+    "cardiology": 3,
+    "oncology": 3,
+    "neurology": 3,
+    "general_medicine": 2
+  },
+  "difficulty_dist": {
+    "easy": 6,
+    "medium": 4,
+    "hard": 5
+  },
+  "duplicate_questions": 0
+}
