@@ -1,0 +1,50 @@
+# Retrieval Configuration for MedFusion-RAFT
+
+pipeline:
+  enable_bm25: true
+  enable_dense: true
+  enable_fusion: true
+  enable_reranker: true
+  bm25_top_k: 20
+  dense_top_k: 20
+  final_top_k: 5
+  bm25_weight: 1.0
+  dense_weight: 1.0
+  use_mock_components: false
+
+bm25:
+  k1: 1.5
+  b: 0.75
+  top_k: 20
+  lowercase: true
+  strip_accents: true
+
+dense:
+  query_model_name_or_path: "ncbi/MedCPT-Query-Encoder"
+  article_model_name_or_path: "ncbi/MedCPT-Article-Encoder"
+  embedding_dim: 768
+  batch_size: 32
+  top_k: 20
+  index_type: "IndexFlatIP"
+  device: null
+  normalize_embeddings: true
+  max_length: 512
+
+fusion:
+  method: "rrf"
+  rrf_k: 60
+  top_k: 20
+
+reranker:
+  model_id: "ncbi/MedCPT-Cross-Encoder"
+  top_k: 5
+  batch_size: 16
+  max_length: 512
+  device: null
+
+chunking:
+  chunk_size: 256
+  overlap: 40
+  min_chunk_size: 30
+  preserve_sections: true
+  preserve_sentences: true

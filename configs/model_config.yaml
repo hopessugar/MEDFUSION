@@ -1,0 +1,55 @@
+# MedFusion-RAFT Model Configurations
+
+generator:
+  provider_type: "medgemma"
+  model_id: "google/medgemma-4b-it"
+  revision: "main"
+  device_map: "auto"
+  trust_remote_code: true
+  quantization_bits: 4
+  quant_type: "nf4"
+  compute_dtype: "bfloat16"
+  use_double_quant: true
+  max_new_tokens: 512
+  temperature: 0.1
+  top_p: 0.9
+  do_sample: true
+  repetition_penalty: 1.1
+  adapter_path: null
+
+verifier:
+  provider_type: "qwen"
+  model_id: "Qwen/Qwen2.5-7B-Instruct"
+  revision: "main"
+  device_map: "auto"
+  trust_remote_code: true
+  quantization_bits: 4
+  quant_type: "nf4"
+  compute_dtype: "bfloat16"
+  use_double_quant: true
+  max_new_tokens: 512
+  temperature: 0.05
+  top_p: 0.9
+  do_sample: false
+  repetition_penalty: 1.05
+  adapter_path: null
+
+mock_generator:
+  provider_type: "mock"
+  model_id: "mock-medical-generator"
+  device_map: "cpu"
+  max_new_tokens: 256
+  temperature: 0.1
+  do_sample: false
+  extra_kwargs:
+    mode: "realistic"
+
+mock_verifier:
+  provider_type: "mock"
+  model_id: "mock-qwen-verifier"
+  device_map: "cpu"
+  max_new_tokens: 256
+  temperature: 0.1
+  do_sample: false
+  extra_kwargs:
+    mode: "realistic"

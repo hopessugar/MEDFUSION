@@ -1,0 +1,16 @@
+{
+  "experiment_id": "E2_bm25_rag",
+  "status": "MOCK_COMPLETED",
+  "mode": "mock",
+  "started_at": "2026-11-07T19:33:22Z",
+  "metrics": {
+    "num_questions": 3,
+    "accept_rate": 0.0,
+    "abstain_rate": 0.0,
+    "avg_confidence": 0.8000000000000002,
+    "avg_latency_ms": 0.4769998292128245
+  },
+  "notes": "Baseline experiment \u2014 results from mock providers are for testing only, not research evaluation.",
+  "elapsed_seconds": 0.0015610996633768082,
+  "completed_at": "2026-11-07T19:33:22Z"
+}

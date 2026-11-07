@@ -1,0 +1,31 @@
+claim_extraction:
+  max_claims_per_answer: 20
+  min_claim_length: 10
+
+citation_validation:
+  strict_mode: true
+  check_passage_existence: true
+  check_content_relevance: true
+
+entailment:
+  model: "cross-encoder/nli-deberta-v3-base"
+  threshold_supported: 0.7
+  threshold_contradicted: 0.3
+
+verification:
+  require_all_claims_supported: false
+  min_support_ratio: 0.6
+  max_unsupported_claims: 2
+  max_contradicted_claims: 0
+
+abstention:
+  enabled: true
+  confidence_threshold: 0.5
+  min_evidence_passages: 1
+  max_revision_attempts: 1
+  calibration_method: "platt_scaling"
+
+decision_policy:
+  accept_min_score: 0.7
+  revise_min_score: 0.4
+  abstain_below: 0.4

@@ -1,0 +1,74 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment Variables & Secrets
+.env
+*.env
+!.env.example
+
+# Large Model Weights and Checkpoints
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+*.engine
+models/*
+!models/.gitkeep
+experiments/checkpoints/*
+!experiments/checkpoints/.gitkeep
+
+# MLflow Tracking & Runs
+experiments/mlruns/
+mlruns/
+.trash/
+
+# Data Directories (raw, cached datasets, processed indices)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/indices/*
+!data/indices/.gitkeep
+*.faiss
+*.index
+
+# Logs & Temporary Files
+logs/
+*.log
+tmp/
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
+
+# IDE Configuration
+.vscode/
+.idea/
+*.swp
+*~
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini

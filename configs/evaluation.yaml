@@ -1,0 +1,37 @@
+metrics:
+  answer_quality:
+    - accuracy
+    - f1
+    - exact_match
+    - bleu
+    - rouge_l
+  retrieval_quality:
+    - recall_at_k
+    - precision_at_k
+    - mrr
+    - ndcg_at_k
+  retrieval_k_values: [1, 3, 5, 10]
+  grounding_quality:
+    - claim_support_rate
+    - citation_precision
+    - citation_recall
+    - unsupported_claim_rate
+    - contradiction_rate
+  abstention:
+    - abstention_precision
+    - abstention_recall
+    - selective_risk
+    - coverage
+  calibration:
+    - ece
+    - brier_score
+
+statistical:
+  confidence_level: 0.95
+  bootstrap_samples: 1000
+  seed: 42
+
+performance:
+  measure_latency: true
+  measure_memory: true
+  measure_throughput: true

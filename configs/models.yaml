@@ -1,0 +1,45 @@
+generator:
+  model_id: "google/medgemma-1.5-4b-it"
+  model_type: "medgemma"
+  revision: "main"
+  quantization:
+    enabled: true
+    bits: 4
+    quant_type: "nf4"
+    compute_dtype: "bfloat16"
+    use_double_quant: true
+  generation:
+    max_new_tokens: 512
+    temperature: 0.1
+    top_p: 0.9
+    do_sample: true
+    repetition_penalty: 1.1
+  device_map: "auto"
+  trust_remote_code: true
+
+verifier:
+  model_id: "Qwen/Qwen3.5-9B"
+  model_type: "qwen"
+  revision: "main"
+  load_as_causal_lm: true  # Load text-only backbone
+  quantization:
+    enabled: true
+    bits: 4
+    quant_type: "nf4"
+    compute_dtype: "bfloat16"
+    use_double_quant: true
+  generation:
+    max_new_tokens: 1024
+    temperature: 0.1
+    top_p: 0.9
+    do_sample: true
+  device_map: "auto"
+  trust_remote_code: true
+
+retrieval:
+  query_encoder: "ncbi/MedCPT-Query-Encoder"
+  article_encoder: "ncbi/MedCPT-Article-Encoder"
+  cross_encoder: "ncbi/MedCPT-Cross-Encoder"
+  embedding_dim: 768
+  max_query_length: 64
+  max_article_length: 512
