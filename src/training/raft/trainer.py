@@ -110,7 +110,7 @@ class RAFTTrainerConfig(BaseModel):
     """
 
     model_id: str = Field(
-        default="google/medgemma-4b-it",
+        default="google/medgemma-1.5-4b-it",
         description="HuggingFace model ID or local path",
     )
     sft_adapter_path: Optional[str] = Field(

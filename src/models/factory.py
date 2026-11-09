@@ -174,7 +174,7 @@ def create_generator(
     """
     resolved_config = _resolve_model_config(
         config=config,
-        default_model_id="google/medgemma-4b-it",
+        default_model_id="google/medgemma-1.5-4b-it",
         default_provider="medgemma",
         **kwargs,
     )

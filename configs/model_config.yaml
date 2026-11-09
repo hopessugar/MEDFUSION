@@ -5,7 +5,7 @@
 
 generator:
   provider_type: "medgemma"
-  model_id: "google/medgemma-4b-it"
+  model_id: "google/medgemma-1.5-4b-it"
   revision: "main"
   device_map: "auto"
   trust_remote_code: true

@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import json
 import random
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -201,6 +202,117 @@ def split_by_document(
     return splits
 
 
+def normalize_question(question: str) -> str:
+    """Normalize question for similarity comparison."""
+    # Convert to lowercase
+    q = question.lower()
+    # Remove punctuation
+    q = re.sub(r'[^\w\s]', '', q)
+    # Remove extra whitespace
+    q = ' '.join(q.split())
+    return q
+
+
+def compute_jaccard_similarity(str1: str, str2: str) -> float:
+    """Compute Jaccard similarity between two strings (word-level)."""
+    words1 = set(str1.split())
+    words2 = set(str2.split())
+    
+    if not words1 or not words2:
+        return 0.0
+    
+    intersection = words1 & words2
+    union = words1 | words2
+    
+    return len(intersection) / len(union) if union else 0.0
+
+
+def detect_near_duplicates(
+    splits: dict[str, list[DatasetExample]],
+    similarity_threshold: float = 0.85
+) -> dict:
+    """Detect near-duplicate questions across train/val/test splits.
+    
+    Uses Jaccard similarity on normalized questions to find potential leakage.
+    
+    Args:
+        splits: Dictionary with 'train', 'validation', 'test' splits
+        similarity_threshold: Threshold for flagging as near-duplicate (0.0-1.0)
+    
+    Returns:
+        Dictionary with contamination report
+    """
+    print(f"\n🔍 Detecting near-duplicates (threshold={similarity_threshold})...")
+    
+    # Normalize all questions
+    train_qs = [(i, normalize_question(ex.question)) for i, ex in enumerate(splits['train'])]
+    val_qs = [(i, normalize_question(ex.question)) for i, ex in enumerate(splits['validation'])]
+    test_qs = [(i, normalize_question(ex.question)) for i, ex in enumerate(splits['test'])]
+    
+    report = {
+        "train_val_duplicates": [],
+        "train_test_duplicates": [],
+        "val_test_duplicates": [],
+        "total_flags": 0
+    }
+    
+    # Check train vs validation
+    for test_idx, test_q in val_qs:
+        for train_idx, train_q in train_qs:
+            sim = compute_jaccard_similarity(test_q, train_q)
+            if sim >= similarity_threshold:
+                report["train_val_duplicates"].append({
+                    "train_idx": train_idx,
+                    "val_idx": test_idx,
+                    "similarity": round(sim, 3),
+                    "train_q": splits['train'][train_idx].question[:100],
+                    "val_q": splits['validation'][test_idx].question[:100]
+                })
+                report["total_flags"] += 1
+    
+    # Check train vs test
+    for test_idx, test_q in test_qs:
+        for train_idx, train_q in train_qs:
+            sim = compute_jaccard_similarity(test_q, train_q)
+            if sim >= similarity_threshold:
+                report["train_test_duplicates"].append({
+                    "train_idx": train_idx,
+                    "test_idx": test_idx,
+                    "similarity": round(sim, 3),
+                    "train_q": splits['train'][train_idx].question[:100],
+                    "test_q": splits['test'][test_idx].question[:100]
+                })
+                report["total_flags"] += 1
+    
+    # Check validation vs test
+    for test_idx, test_q in test_qs:
+        for val_idx, val_q in val_qs:
+            sim = compute_jaccard_similarity(test_q, val_q)
+            if sim >= similarity_threshold:
+                report["val_test_duplicates"].append({
+                    "val_idx": val_idx,
+                    "test_idx": test_idx,
+                    "similarity": round(sim, 3),
+                    "val_q": splits['validation'][val_idx].question[:100],
+                    "test_q": splits['test'][test_idx].question[:100]
+                })
+                report["total_flags"] += 1
+    
+    # Print summary
+    print(f"   Train-Val near-duplicates: {len(report['train_val_duplicates'])}")
+    print(f"   Train-Test near-duplicates: {len(report['train_test_duplicates'])}")
+    print(f"   Val-Test near-duplicates: {len(report['val_test_duplicates'])}")
+    print(f"   Total flags: {report['total_flags']}")
+    
+    if report['total_flags'] > 0:
+        print(f"   ⚠️ WARNING: Found {report['total_flags']} potential near-duplicates!")
+        print(f"   Review contamination_report.json for details.")
+    else:
+        print(f"   ✅ No near-duplicates detected. Clean split!")
+    
+    return report
+
+
 def convert_to_sft(examples: list[DatasetExample]) -> list[TrainingSFTExample]:
     """Convert DatasetExamples to SFT training format."""
     sft_examples = []
@@ -351,6 +463,13 @@ def main():
         test_ratio=args.test_ratio,
         seed=args.seed,
     )
+
+    # Detect contamination
+    contamination_report = detect_near_duplicates(splits, similarity_threshold=0.85)
+    contamination_path = output_dir / "contamination_report.json"
+    with open(contamination_path, "w") as f:
+        json.dump(contamination_report, f, indent=2)
+    print(f"   Contamination report saved to {contamination_path}")
 
     # Save raw splits
     for split_name, split_examples in splits.items():
