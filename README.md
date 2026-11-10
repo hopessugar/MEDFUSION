@@ -22,7 +22,16 @@
 <!-- Typing Animation -->
 <p align="center">
   <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=28&duration=3000&pause=1000&color=00D9FF&center=true&vCenter=true&multiline=true&repeat=true&width=800&height=100&lines=Evidence-Grounded+Medical+AI;Independent+Verification+%E2%9C%93;Selective+Abstention+%E2%9C%93;World-Class+Benchmarks+%E2%9C%93" alt="Typing SVG" />
+
+
+
 </p>
+
+
+
+
+
+
 
 <!-- 3D Rotating Diagram -->
 <img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900"/>
