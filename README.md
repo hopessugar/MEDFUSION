@@ -241,25 +241,6 @@ E9: Full System      █████████████████░░�
 </td>
 <td width="33%" align="center">
 
-### 👨‍⚕️ Expert Evaluation
-<img src="https://user-images.githubusercontent.com/74038190/212750147-854a394f-fee9-4080-9770-78a4b7ece53f.gif" width="150"/>
-
-✅ **5 Board-Certified MDs**  
-✅ **6 Evaluation Dimensions**  
-✅ **Statistical Rigor** (κ = 0.68)  
-✅ **200 Questions per MD**  
-✅ **Clinical Utility Assessment**  
-✅ **Harm Potential Screening**  
-
-*Publication-ready validation*
-
-</td>
-</tr>
-</table>
-
-</div>
-
----
 
 ## 🚀 Quick Start
 
@@ -630,65 +611,7 @@ docker compose --profile gpu up
 
 <div align="center">
 
-### 🔬 Research Standards
 
-<img src="https://user-images.githubusercontent.com/74038190/212749171-b84692a8-2848-4e86-9162-d08214bd1666.gif" width="400"/>
-
-✅ **All random seeds configurable** (default: 42)  
-✅ **Pinned dependency versions** (`pyproject.toml`)  
-✅ **Model revisions recorded** in configs  
-✅ **LoRA adapters saved separately**  
-✅ **Training configs versioned** with checkpoints  
-✅ **Hardware info logged** in results  
-✅ **Document-level splits** (no random splits)  
-✅ **Bootstrap confidence intervals** (statistical tests)  
-✅ **Contamination detection** (Jaccard similarity ≥ 0.85)  
-
-</div>
-
----
-
-## 🎓 Citation
-
-<div align="center">
-
-If you use MedFusion-RAFT in your research, please cite:
-
-```bibtex
-@software{medfusion_raft_2024,
-    title={MedFusion-RAFT: An Adaptive, Evidence-Grounded Medical Question
-           Answering Framework with Retrieval-Augmented Fine-Tuning,
-           Independent Verification and Selective Abstention},
-    author={Your Name},
-    year={2024},
-    publisher={GitHub},
-    url={https://github.com/your-org/medfusion-raft},
-    note={89.4\% accuracy, 98.8\% citation precision, independent verification}
-}
-```
-
-</div>
-
----
-
-## 🤝 Contributing
-
-<div align="center">
-
-<img src="https://user-images.githubusercontent.com/74038190/212257481-a97c9829-ba50-4bd7-a4a0-f8c03e8f5fc7.gif" width="400"/>
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md).
-
-**Areas we'd love help with:**
-- 🧪 Additional benchmarks
-- 🛡️ Security testing
-- 🌍 Multi-language support
-- 📚 Documentation
-- 🐛 Bug fixes
-
-</div>
-
----
 
 ## 📜 License
 
@@ -707,71 +630,6 @@ This project is licensed under **Apache 2.0**. See [LICENSE](LICENSE) for detail
 | PubMedQA | MIT | Various |
 
 </div>
-
----
-
-## ⚠️ Important Disclaimer
-
-<div align="center">
-
-> **🏥 FOR RESEARCH PURPOSES ONLY**
-> 
-> This system is **NOT** approved for clinical use.  
-> Always consult qualified healthcare professionals for medical advice.
-> 
-> The system may produce incorrect or harmful information.  
-> Independent medical validation is required before any clinical application.
-
-</div>
-
----
-
-## 🌟 Star History
-
-<div align="center">
-
-[![Star History Chart](https://api.star-history.com/svg?repos=your-org/medfusion-raft&type=Date)](https://star-history.com/#your-org/medfusion-raft&Date)
-
-### ⭐ If you find this project useful, please star it!
-
-</div>
-
----
-
-## 📞 Contact & Support
-
-<div align="center">
-
-<table>
-<tr>
-<td align="center" width="25%">
-<img src="https://user-images.githubusercontent.com/74038190/212257454-16e3712e-945a-4ca2-b238-408ad0bf87e6.gif" width="80"/>
-<br><b>📧 Email</b>
-<br><a href="mailto:contact@medfusion.ai">contact@medfusion.ai</a>
-</td>
-<td align="center" width="25%">
-<img src="https://user-images.githubusercontent.com/74038190/212257463-4d082cb4-7483-4eaf-bc25-6dde2628aabd.gif" width="80"/>
-<br><b>💬 Discord</b>
-<br><a href="https://discord.gg/medfusion">Join our community</a>
-</td>
-<td align="center" width="25%">
-<img src="https://user-images.githubusercontent.com/74038190/212257465-7ce8d493-cac5-494e-982a-5a9deb852c4b.gif" width="80"/>
-<br><b>🐦 Twitter</b>
-<br><a href="https://twitter.com/medfusion_ai">@medfusion_ai</a>
-</td>
-<td align="center" width="25%">
-<img src="https://user-images.githubusercontent.com/74038190/212257468-1e9a91f1-b626-4baa-b15d-5c385dfa7ed2.gif" width="80"/>
-<br><b>📚 Docs</b>
-<br><a href="https://docs.medfusion.ai">Read the docs</a>
-</td>
-</tr>
-</table>
-
----
-
-### 💖 Built with love for the medical AI community
-
-<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="900"/>
 
 ---
 
