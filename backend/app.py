@@ -21,12 +21,13 @@ from src.utils.logging import request_context, setup_logging
 logger = logging.getLogger(__name__)
 
 
-def create_app(config_dir: str = "./configs", mock: bool = False) -> FastAPI:
+def create_app(config_dir: str = "./configs", mock: bool = False, allowed_origins: list[str] | None = None) -> FastAPI:
     """Create and configure the FastAPI application instance.
 
     Args:
         config_dir: Filesystem directory path containing configuration YAML files.
         mock: If True, boots models in mock mode for CPU-only testing.
+        allowed_origins: List of allowed CORS origins. If None, uses restrictive defaults.
 
     Returns:
         Configured FastAPI application instance.
@@ -55,13 +56,27 @@ def create_app(config_dir: str = "./configs", mock: bool = False) -> FastAPI:
         lifespan=lifespan,
     )
 
-    # 1. CORS Middleware
+    # 1. CORS Middleware - Restrictive by default for security
+    # For development, set allowed_origins=["http://localhost:3000", "http://localhost:8080"]
+    # For production, specify exact frontend domains
+    cors_origins = allowed_origins or [
+        "http://localhost:3000",  # Default React dev server
+        "http://localhost:8080",  # Alternative dev port
+    ]
+    
+    # Security: Only allow wildcard in development with explicit opt-in
+    if "*" in cors_origins:
+        logger.warning(
+            "CORS configured with wildcard origin '*' - only use in development! "
+            "For production, specify exact allowed origins."
+        )
+    
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=cors_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicit methods
+        allow_headers=["Content-Type", "Authorization", "X-Request-ID"],  # Explicit headers
     )
 
     # 2. Request Logging & Correlation Middleware

@@ -32,6 +32,73 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["Medical QA Pipeline"])
 
 
+# Security: Allowed base directories for file operations
+ALLOWED_DATA_DIRS = {
+    Path("./data").resolve(),
+    Path("./experiments").resolve(),
+}
+
+
+def validate_file_path(file_path: str, operation: str = "read") -> Path:
+    """Validate file path to prevent path traversal attacks.
+    
+    Args:
+        file_path: User-provided file path string.
+        operation: Type of operation ('read' or 'write').
+    
+    Returns:
+        Validated and resolved Path object.
+    
+    Raises:
+        HTTPException: If path is invalid or outside allowed directories.
+    """
+    try:
+        # Resolve to absolute path
+        resolved_path = Path(file_path).resolve()
+        
+        # Check if path is within allowed directories
+        is_allowed = any(
+            resolved_path.is_relative_to(allowed_dir) or resolved_path == allowed_dir
+            for allowed_dir in ALLOWED_DATA_DIRS
+        )
+        
+        if not is_allowed:
+            logger.warning(
+                "Path traversal attempt blocked: %s (resolved: %s)",
+                file_path,
+                resolved_path,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Access denied: path must be within allowed directories "
+                    f"(data/, experiments/). Attempted path: {file_path}"
+                ),
+            )
+        
+        # For read operations, verify file exists
+        if operation == "read" and not resolved_path.is_file():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"File not found: {file_path}",
+            )
+        
+        # For write operations, ensure parent directory exists
+        if operation == "write":
+            resolved_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        return resolved_path
+        
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Path validation error for %s: %s", file_path, exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file path: {str(exc)}",
+        ) from exc
+
+
 def get_pipeline_service() -> PipelineService:
     """Dependency injection provider for the pipeline singleton service."""
     return PipelineService.get_instance()
@@ -92,12 +159,8 @@ async def run_evaluation(
     service: PipelineService = Depends(get_pipeline_service),
 ) -> Dict[str, Any]:
     """Execute evaluation over questions in a benchmark dataset file."""
-    dataset_path = Path(request.dataset_path)
-    if not dataset_path.is_file():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Dataset file not found: {request.dataset_path}",
-        )
+    # Validate dataset path for security
+    dataset_path = validate_file_path(request.dataset_path, operation="read")
 
     # Load dataset records
     records: list[dict[str, Any]] = []
@@ -121,6 +184,8 @@ async def run_evaluation(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Unsupported evaluation dataset format: {suffix}",
             )
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -152,10 +217,11 @@ async def run_evaluation(
     )
     batch_resp = service.process_batch(batch_req)
 
-    # Determine output location
-    out_dir = Path(request.output_dir or "./experiments/evaluations")
+    # Validate and determine output location
+    out_dir_path = request.output_dir or "./experiments/evaluations"
+    out_dir = validate_file_path(out_dir_path, operation="write").parent
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_file = out_dir / f"eval_{request.experiment_id}_{int(time.time())}.json"
+    out_file = out_dir / out_dir_path.split("/")[-1] if "/" in out_dir_path else out_dir / f"eval_{request.experiment_id}_{int(time.time())}.json"
 
     eval_result = {
         "experiment_id": request.experiment_id,

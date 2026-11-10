@@ -126,6 +126,10 @@ class StructureAwareChunker(BaseChunker):
         Returns:
             List of Passage instances with stable IDs and metadata.
         """
+        # Handle page-structured documents (PDFs) differently
+        if document.pages and len(document.pages) > 0:
+            return self._chunk_pages(document)
+        
         text = document.text.strip()
         if not text:
             return []
@@ -161,6 +165,40 @@ class StructureAwareChunker(BaseChunker):
                 )
             )
 
+        return passages
+    
+    def _chunk_pages(self, document: Document) -> List[Passage]:
+        """Chunk a page-structured document (like PDF) preserving page boundaries.
+        
+        Args:
+            document: Document with page-level structure
+            
+        Returns:
+            List of Passage instances with page metadata preserved
+        """
+        passages: List[Passage] = []
+        chunk_idx = 0
+        
+        for page in document.pages:
+            page_text = page.text.strip()
+            if not page_text:
+                continue
+            
+            # Get section from page if available, or detect from content
+            page_sections = self._split_into_sections(page_text) if self.config.preserve_sections else [("General", page_text)]
+            
+            for section_title, section_text in page_sections:
+                section_passages = self._chunk_section(
+                    doc=document,
+                    section_title=section_title,
+                    section_text=section_text,
+                    start_index=chunk_idx,
+                    page_number=page.page_number,
+                    page_metadata=page.metadata,
+                )
+                passages.extend(section_passages)
+                chunk_idx += len(section_passages)
+        
         return passages
 
     def _split_into_sections(self, text: str) -> List[Tuple[str, str]]:
@@ -210,8 +248,19 @@ class StructureAwareChunker(BaseChunker):
         section_title: str,
         section_text: str,
         start_index: int,
+        page_number: Optional[int] = None,
+        page_metadata: Optional[Dict[str, Any]] = None,
     ) -> List[Passage]:
-        """Chunk sentences within a section into sized passages."""
+        """Chunk sentences within a section into sized passages.
+        
+        Args:
+            doc: Source document
+            section_title: Title of the section being chunked
+            section_text: Text content of the section
+            start_index: Starting chunk index
+            page_number: Optional page number for PDF documents
+            page_metadata: Optional page-level metadata
+        """
         paragraphs = [p.strip() for p in section_text.split("\n\n") if p.strip()]
         if not paragraphs:
             return []
@@ -249,6 +298,8 @@ class StructureAwareChunker(BaseChunker):
                             text=sub_text,
                             section=section_title,
                             chunk_index=chunk_idx,
+                            page_number=page_number,
+                            page_metadata=page_metadata,
                         )
                     )
                     chunk_idx += 1
@@ -266,6 +317,8 @@ class StructureAwareChunker(BaseChunker):
                             text=chunk_text,
                             section=section_title,
                             chunk_index=chunk_idx,
+                            page_number=page_number,
+                            page_metadata=page_metadata,
                         )
                     )
                     chunk_idx += 1
@@ -300,6 +353,8 @@ class StructureAwareChunker(BaseChunker):
                     text=merged_text,
                     section=section_title,
                     chunk_index=last_passage.metadata["chunk_index"],
+                    page_number=page_number,
+                    page_metadata=page_metadata,
                 )
             else:
                 passages.append(
@@ -308,6 +363,8 @@ class StructureAwareChunker(BaseChunker):
                         text=chunk_text,
                         section=section_title,
                         chunk_index=chunk_idx,
+                        page_number=page_number,
+                        page_metadata=page_metadata,
                     )
                 )
 
@@ -319,6 +376,8 @@ class StructureAwareChunker(BaseChunker):
         text: str,
         section: str,
         chunk_index: int,
+        page_number: Optional[int] = None,
+        page_metadata: Optional[Dict[str, Any]] = None,
     ) -> Passage:
         """Create a Passage object with consistent metadata and identifier."""
         passage_id = f"{doc.doc_id}_chunk_{chunk_index:04d}"
@@ -330,6 +389,13 @@ class StructureAwareChunker(BaseChunker):
             "word_count": len(text.split()),
             "char_count": len(text),
         }
+        
+        # Add page information if available
+        if page_number is not None:
+            metadata["page_number"] = page_number
+        if page_metadata:
+            metadata["page_metadata"] = page_metadata
+        
         return Passage(
             passage_id=passage_id,
             doc_id=doc.doc_id,

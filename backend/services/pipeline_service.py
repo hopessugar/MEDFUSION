@@ -1,4 +1,8 @@
-"""Pipeline orchestration service powering the MedFusion-RAFT API."""
+"""Pipeline orchestration service powering the MedFusion-RAFT API.
+
+This service wraps the main MedFusionOrchestrator and provides API-friendly
+interfaces, eliminating duplicate pipeline implementations.
+"""
 
 from __future__ import annotations
 
@@ -17,81 +21,27 @@ from backend.schemas.responses import (
     HealthResponse,
     PassageResponse,
 )
-from src.models.base import (
-    BaseGeneratorProvider,
-    BaseVerifierProvider,
-    ParsedMedicalAnswer,
-    ParsedVerificationResult,
-)
-from src.models.factory import create_generator, create_verifier
-from src.models.medgemma import MedGemmaProvider
-from src.models.qwen_verifier import QwenVerifierProvider
 from src.models.schemas import (
     AnswerabilityLabel,
-    AtomicClaim,
-    Citation,
-    ClaimSupportStatus,
     DecisionType,
-    Document,
-    GeneratedAnswer,
-    Passage,
-    PipelineDecision,
-    RetrievedPassage,
-    VerificationResult,
+    MedicalQuestion,
+    PipelineResult,
 )
-from src.retrieval.pipeline import RetrievalPipeline, RetrievalPipelineConfig
+from src.pipeline.orchestrator import (
+    MedFusionOrchestrator,
+    create_orchestrator_from_config,
+)
 from src.utils.config import AppConfig, get_app_config
-from src.verification.citation_validator import CitationValidator
-from src.verification.claim_extractor import ClaimExtractor
-from src.verification.decision import DecisionEngine, DecisionPolicyConfig
 
 logger = logging.getLogger(__name__)
 
-# Fallback default clinical guidelines indexed for immediate out-of-the-box grounding
-DEFAULT_CLINICAL_CORPUS: list[Passage] = [
-    Passage(
-        passage_id="guideline_htn_001",
-        doc_id="acc_aha_htn_2024",
-        text=(
-            "First-line pharmacological agents for uncomplicated primary hypertension include "
-            "thiazide diuretics, calcium channel blockers (CCBs), and angiotensin-converting enzyme "
-            "(ACE) inhibitors or angiotensin receptor blockers (ARBs). Beta-blockers are not "
-            "recommended as initial monotherapy in the absence of compelling indications such as "
-            "ischemic heart disease or heart failure."
-        ),
-        section="Pharmacological Management",
-        metadata={"source": "ACC/AHA Clinical Guidelines", "title": "Hypertension Guideline"},
-    ),
-    Passage(
-        passage_id="guideline_t2d_002",
-        doc_id="ada_diabetes_2024",
-        text=(
-            "Metformin remains the cornerstone first-line pharmacotherapy for type 2 diabetes "
-            "mellitus in patients without severe renal impairment (eGFR < 30 mL/min/1.73m²). "
-            "For patients with established atherosclerotic cardiovascular disease, heart failure, "
-            "or chronic kidney disease, SGLT2 inhibitors or GLP-1 receptor agonists with proven "
-            "cardiovascular and renal benefit should be incorporated."
-        ),
-        section="Glycemic Control",
-        metadata={"source": "ADA Standards of Care", "title": "Diabetes Care Standards"},
-    ),
-    Passage(
-        passage_id="guideline_asthma_003",
-        doc_id="gina_asthma_2024",
-        text=(
-            "Global Initiative for Asthma (GINA) guidelines no longer recommend SABA-only treatment "
-            "of asthma. For adults and adolescents, the preferred Track 1 reliever is low-dose "
-            "inhaled corticosteroid (ICS)-formoterol as needed, which significantly reduces the "
-            "risk of severe exacerbations compared to short-acting beta2-agonist monotherapy."
-        ),
-        section="Asthma Controller Therapy",
-        metadata={"source": "GINA Report", "title": "Global Strategy for Asthma Management"},
-    ),
-]
-
 
 class PipelineService:
-    """Service encapsulating retrieval, generation, verification, and abstention routing."""
+    """Service encapsulating the main MedFusionOrchestrator for API use.
+    
+    This is a thin wrapper that translates API requests to/from the canonical
+    orchestrator, ensuring a single source of truth for pipeline execution.
+    """
 
     _instance: Optional[PipelineService] = None
 
@@ -103,16 +53,12 @@ class PipelineService:
         """
         self.config_dir = config_dir
         self.config: AppConfig = get_app_config(config_dir=config_dir)
-        self.generator: Optional[BaseGeneratorProvider] = None
-        self.verifier: Optional[BaseVerifierProvider] = None
-        self.retrieval_pipeline: Optional[RetrievalPipeline] = None
-        self.claim_extractor: Optional[ClaimExtractor] = None
-        self.citation_validator: Optional[CitationValidator] = None
-        self.decision_engine: Optional[DecisionEngine] = None
+        self.orchestrator: Optional[MedFusionOrchestrator] = None
 
         self._start_time: float = time.time()
         self._models_loaded: bool = False
         self._mock_mode: bool = False
+        self._current_experiment_id: str = "E1_base"
 
     @classmethod
     def get_instance(cls, config_dir: str = "./configs", mock: bool = False) -> PipelineService:
@@ -137,81 +83,76 @@ class PipelineService:
             cls._instance.shutdown()
             cls._instance = None
 
-    def initialize(self, mock: bool = False) -> None:
-        """Instantiate models, retrieval index, and verification engines.
+    def initialize(self, mock: bool = False, experiment_id: str = "E1_base") -> None:
+        """Instantiate the main orchestrator with selected experiment configuration.
 
         Args:
             mock: If True, uses mock providers for rapid CPU-friendly execution.
+            experiment_id: Experiment configuration to load.
         """
         if self._models_loaded:
             logger.info("PipelineService already initialized.")
             return
 
         self._mock_mode = mock
-        logger.info("Initializing PipelineService (mock=%s)...", mock)
-
-        provider_type = "mock" if mock else None
-
-        # 1. Generator
-        try:
-            self.generator = create_generator(provider_type=provider_type)
-            self.generator.load()
-        except Exception as exc:
-            logger.warning("Failed to initialize primary generator, falling back to mock: %s", exc)
-            self.generator = create_generator(provider_type="mock")
-            self.generator.load()
-
-        # 2. Verifier
-        try:
-            self.verifier = create_verifier(provider_type=provider_type)
-            self.verifier.load()
-        except Exception as exc:
-            logger.warning("Failed to initialize primary verifier, falling back to mock: %s", exc)
-            self.verifier = create_verifier(provider_type="mock")
-            self.verifier.load()
-
-        # 3. Retrieval Pipeline
-        retrieval_cfg = RetrievalPipelineConfig(
-            use_mock_components=mock or not os.environ.get("CUDA_VISIBLE_DEVICES"),
-            bm25_top_k=5,
-            dense_top_k=5,
-            final_top_k=3,
+        self._current_experiment_id = experiment_id
+        logger.info(
+            "Initializing PipelineService (mock=%s, experiment=%s)...",
+            mock,
+            experiment_id,
         )
-        self.retrieval_pipeline = RetrievalPipeline(config=retrieval_cfg)
-        self.retrieval_pipeline.build_index(DEFAULT_CLINICAL_CORPUS)
 
-        # 4. Verification components
-        self.claim_extractor = ClaimExtractor()
-        self.citation_validator = CitationValidator()
-        self.decision_engine = DecisionEngine(config=DecisionPolicyConfig())
+        # Create the main orchestrator using factory
+        try:
+            self.orchestrator = create_orchestrator_from_config(
+                config_dir=self.config_dir,
+                experiment_id=experiment_id,
+                use_mock_models=mock,
+            )
+            self._models_loaded = True
+            logger.info("PipelineService initialization complete.")
+        except Exception as exc:
+            logger.error("Failed to initialize orchestrator: %s", exc, exc_info=True)
+            # Fall back to mock mode if real models fail
+            if not mock:
+                logger.warning("Falling back to mock mode due to initialization failure")
+                self._mock_mode = True
+                self.orchestrator = create_orchestrator_from_config(
+                    config_dir=self.config_dir,
+                    experiment_id=experiment_id,
+                    use_mock_models=True,
+                )
+                self._models_loaded = True
+            else:
+                raise
 
-        self._models_loaded = True
-        logger.info("PipelineService initialization complete.")
+    def _convert_request_to_question(self, request: QuestionRequest) -> MedicalQuestion:
+        """Convert API request to internal MedicalQuestion schema."""
+        return MedicalQuestion(
+            question_id=f"api_{int(time.time() * 1000000)}",
+            question=request.question,
+            specialty=request.specialty,
+            metadata={"source": "api", "timestamp": datetime.now(timezone.utc).isoformat()},
+        )
 
-    def process_question(self, request: QuestionRequest) -> AnswerResponse:
-        """Process a single clinical question end-to-end.
+    def _convert_result_to_response(self, result: PipelineResult) -> AnswerResponse:
+        """Convert internal PipelineResult to API response schema."""
+        # Extract claims
+        claim_responses: list[ClaimResponse] = []
+        if result.verification_result and result.verification_result.claim_results:
+            for claim in result.verification_result.claim_results:
+                claim_responses.append(
+                    ClaimResponse(
+                        claim_text=claim.claim_text,
+                        support_status=claim.support_status.value if claim.support_status else "unknown",
+                        evidence_passage_id=(
+                            claim.citations[0].passage_id if claim.citations else None
+                        ),
+                        reasoning=None,
+                    )
+                )
 
-        Args:
-            request: Validated QuestionRequest payload.
-
-        Returns:
-            Structured AnswerResponse with grounded answer, claims, and decision.
-        """
-        if not self._models_loaded:
-            self.initialize(mock=self._mock_mode)
-
-        start_time = time.perf_counter()
-        retrieved_passages: list[RetrievedPassage] = []
-
-        # 1. Retrieval Stage
-        if request.use_retrieval and self.retrieval_pipeline is not None:
-            try:
-                retrieved_passages = self.retrieval_pipeline.retrieve(request.question, top_k=3)
-            except Exception as exc:
-                logger.error("Error during retrieval: %s", exc, exc_info=True)
-                retrieved_passages = []
-
-        context_texts = [p.text for p in retrieved_passages]
+        # Extract passages
         evidence_responses = [
             PassageResponse(
                 passage_id=p.passage_id,
@@ -220,88 +161,75 @@ class PipelineService:
                 score=float(p.score),
                 section=p.section,
             )
-            for p in retrieved_passages
+            for p in result.retrieved_passages
         ]
 
-        # 2. Generation Stage
-        assert self.generator is not None
-        gen_output = self.generator.generate_answer(
-            question=request.question,
-            context=context_texts,
-        )
-        parsed_answer = MedGemmaProvider.parse_medical_answer(gen_output.text)
-
-        answer_text = parsed_answer.answer
-        citations = list(parsed_answer.citations)
-        confidence = float(parsed_answer.confidence)
-        answerability = parsed_answer.answerability.value
-
-        # 3. Verification Stage
-        claim_responses: list[ClaimResponse] = []
-        verification_status = "unverified"
-        decision_label = "accept"
-        contradicted_count = 0
-        supported_count = 0
-
-        if request.use_verification and self.verifier is not None:
-            ver_output = self.verifier.verify_answer(
-                question=request.question,
-                answer=answer_text,
-                evidence=context_texts,
-            )
-            parsed_ver = QwenVerifierProvider.parse_verification_output(ver_output.text)
-            verification_status = parsed_ver.overall_assessment.value
-
-            for c in parsed_ver.claims:
-                claim_responses.append(
-                    ClaimResponse(
-                        claim_text=c.claim,
-                        support_status=c.status.value,
-                        evidence_passage_id=c.evidence if c.evidence != "NONE" else None,
-                        reasoning=c.reasoning,
-                    )
-                )
-                if c.status.value == "contradicted":
-                    contradicted_count += 1
-                elif c.status.value == "supported":
-                    supported_count += 1
-
-            # 4. Decision Policy
-            if request.use_abstention and self.decision_engine is not None:
-                if answerability == AnswerabilityLabel.UNANSWERABLE.value:
-                    decision_label = DecisionType.ABSTAIN.value
-                    answer_text = (
-                        "The system cannot answer this question based on currently retrieved evidence."
-                    )
-                elif contradicted_count > 0:
-                    decision_label = DecisionType.ABSTAIN.value
-                    answer_text = (
-                        "Clinical assertion withheld due to contradictory evidence in published guidelines."
-                    )
-                elif verification_status in ("not_verified", "insufficient_evidence") and supported_count == 0:
-                    decision_label = DecisionType.REVISE.value
-                else:
-                    decision_label = DecisionType.ACCEPT.value
-        elif not request.use_verification:
-            verification_status = "skipped"
-
-        total_elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+        # Extract citations
+        citations = []
+        if result.generated_answer and result.generated_answer.claims:
+            for claim in result.generated_answer.claims:
+                for cit in claim.citations:
+                    if cit.passage_id not in citations:
+                        citations.append(cit.passage_id)
 
         return AnswerResponse(
-            answer_text=answer_text,
+            answer_text=result.final_answer or "Unable to generate answer",
             citations=citations,
-            answerability=answerability,
-            confidence=confidence,
+            answerability=(
+                result.generated_answer.answerability.value
+                if result.generated_answer
+                else AnswerabilityLabel.UNANSWERABLE.value
+            ),
+            confidence=(
+                result.generated_answer.confidence if result.generated_answer else 0.0
+            ),
             claims=claim_responses,
-            verification_status=verification_status,
-            decision=decision_label,
+            verification_status=(
+                "verified"
+                if result.verification_result and result.verification_result.verified
+                else "not_verified"
+            ),
+            decision=(
+                result.decision.decision.value if result.decision else DecisionType.ACCEPT.value
+            ),
             evidence_passages=evidence_responses,
-            processing_time_ms=round(total_elapsed_ms, 2),
-            experiment_id=request.experiment_id,
+            processing_time_ms=round(result.total_time_ms, 2),
+            experiment_id=result.experiment_id,
         )
 
+    def process_question(self, request: QuestionRequest) -> AnswerResponse:
+        """Process a single clinical question end-to-end using main orchestrator.
+
+        Args:
+            request: Validated QuestionRequest payload.
+
+        Returns:
+            Structured AnswerResponse with grounded answer, claims, and decision.
+        """
+        if not self._models_loaded:
+            self.initialize(mock=self._mock_mode, experiment_id=request.experiment_id or self._current_experiment_id)
+
+        # Reinitialize if experiment changed (different config)
+        if request.experiment_id and request.experiment_id != self._current_experiment_id:
+            logger.info("Switching experiment from %s to %s", self._current_experiment_id, request.experiment_id)
+            self._current_experiment_id = request.experiment_id
+            # Note: In production, you might want to cache multiple orchestrators
+            # For now, we reinitialize
+            self.orchestrator = create_orchestrator_from_config(
+                config_dir=self.config_dir,
+                experiment_id=request.experiment_id,
+                use_mock_models=self._mock_mode,
+            )
+
+        question = self._convert_request_to_question(request)
+        
+        assert self.orchestrator is not None, "Orchestrator not initialized"
+        result = self.orchestrator.process_question(question)
+        
+        return self._convert_result_to_response(result)
+
     def process_batch(self, request: BatchQuestionRequest) -> BatchAnswerResponse:
-        """Process a batch of questions sequentially or concurrently.
+        """Process a batch of questions using main orchestrator.
 
         Args:
             request: Validated BatchQuestionRequest payload.
@@ -343,30 +271,28 @@ class PipelineService:
 
         uptime = time.time() - self._start_time
 
+        # Check if models are actually loaded (not just initialized)
+        models_loaded = self._models_loaded and self.orchestrator is not None
+        if models_loaded and self.orchestrator:
+            # Check generator status
+            if self.orchestrator.generator:
+                models_loaded = models_loaded and self.orchestrator.generator.is_loaded
+
         return HealthResponse(
-            status="healthy",
-            models_loaded=self._models_loaded,
+            status="healthy" if models_loaded else "initializing",
+            models_loaded=models_loaded,
             gpu_available=gpu_available,
             uptime_seconds=round(uptime, 2),
-            version="0.1.0",
+            version="0.2.0",  # Incremented after orchestrator unification
         )
 
     def shutdown(self) -> None:
         """Unload models and release allocated resources."""
         logger.info("Shutting down PipelineService...")
-        if self.generator is not None:
-            try:
-                self.generator.unload()
-            except Exception as exc:
-                logger.warning("Error unloading generator: %s", exc)
-            self.generator = None
-
-        if self.verifier is not None:
-            try:
-                self.verifier.unload()
-            except Exception as exc:
-                logger.warning("Error unloading verifier: %s", exc)
-            self.verifier = None
-
+        
+        # The orchestrator's models will be garbage collected
+        # Individual providers handle their own cleanup in __del__ if needed
+        self.orchestrator = None
         self._models_loaded = False
+        
         logger.info("PipelineService successfully shut down.")

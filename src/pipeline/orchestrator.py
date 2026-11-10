@@ -356,6 +356,7 @@ class MedFusionOrchestrator:
 
         # Stage 5: Verification
         verification: Optional[VerificationResult] = None
+        verification_failed: bool = False
         if self.config.enable_verification and self.verification_pipeline is not None:
             try:
                 with log_execution_time(logger, "verification"):
@@ -366,12 +367,22 @@ class MedFusionOrchestrator:
                     )
             except Exception as exc:
                 logger.error("Verification failed: %s", exc, exc_info=True)
-                # Fail gracefully: proceed with unverified answer
+                # CRITICAL FAIL-SAFE: Verification failure MUST result in ABSTAIN, not ACCEPT
+                verification_failed = True
                 verification = None
 
         # Stage 6: Decision Policy
         decision: Optional[PipelineDecision] = None
-        if self.config.enable_abstention and self.decision_engine is not None and verification is not None:
+        
+        # FAIL-SAFE: If verification was enabled but failed, we MUST abstain
+        if verification_failed:
+            decision = PipelineDecision(
+                decision=DecisionType.ABSTAIN,
+                score=0.0,
+                reasoning="Verification system failed - cannot validate answer safety",
+                revision_count=0,
+            )
+        elif self.config.enable_abstention and self.decision_engine is not None and verification is not None:
             decision = self.decision_engine.decide(
                 answer=answer,
                 verification=verification,
@@ -379,12 +390,12 @@ class MedFusionOrchestrator:
                 current_revision_count=0,
             )
         else:
-            # Default decision policy when abstention or verification is bypassed
+            # Default decision policy when abstention or verification is intentionally bypassed in config
             conf = answer.confidence if (answer and answer.confidence is not None) else 1.0
             decision = PipelineDecision(
                 decision=DecisionType.ACCEPT,
                 score=conf,
-                reasoning="Bypassed abstention engine (verification or abstention disabled)",
+                reasoning="Bypassed abstention engine (verification or abstention disabled in experiment config)",
                 revision_count=0,
             )
 
@@ -411,6 +422,14 @@ class MedFusionOrchestrator:
                     )
                 except Exception as exc:
                     logger.error("Re-verification error during revision: %s", exc)
+                    # FAIL-SAFE: If re-verification fails, we must abstain
+                    decision = PipelineDecision(
+                        decision=DecisionType.ABSTAIN,
+                        score=0.0,
+                        reasoning=f"Re-verification failed during revision attempt {revision_attempts}",
+                        revision_count=revision_attempts,
+                    )
+                    break  # Exit revision loop
 
             if self.decision_engine is not None and verification is not None:
                 decision = self.decision_engine.decide(
@@ -489,19 +508,33 @@ def create_orchestrator_from_config(
 
     # 1. Generator Provider
     gen_provider_type = "mock" if use_mock_models else app_cfg.models.generator.model_type
-    generator = create_generator(
-        config=ModelConfig(
-            model_id=app_cfg.models.generator.model_id,
-            provider_type=gen_provider_type,
-            device_map=app_cfg.models.generator.device_map,
-            trust_remote_code=app_cfg.models.generator.trust_remote_code,
-            max_new_tokens=app_cfg.models.generator.generation.max_new_tokens,
-            temperature=app_cfg.models.generator.generation.temperature,
-            top_p=app_cfg.models.generator.generation.top_p,
-            do_sample=app_cfg.models.generator.generation.do_sample,
-            repetition_penalty=app_cfg.models.generator.generation.repetition_penalty,
-        )
-    )
+    
+    # Build complete generator config with all YAML fields
+    gen_config_dict = {
+        "model_id": app_cfg.models.generator.model_id,
+        "provider_type": gen_provider_type,
+        "revision": app_cfg.models.generator.revision,
+        "device_map": app_cfg.models.generator.device_map,
+        "trust_remote_code": app_cfg.models.generator.trust_remote_code,
+        "max_new_tokens": app_cfg.models.generator.generation.max_new_tokens,
+        "temperature": app_cfg.models.generator.generation.temperature,
+        "top_p": app_cfg.models.generator.generation.top_p,
+        "do_sample": app_cfg.models.generator.generation.do_sample,
+        "repetition_penalty": app_cfg.models.generator.generation.repetition_penalty,
+    }
+    
+    # Add quantization config if present and enabled
+    if hasattr(app_cfg.models.generator, 'quantization') and app_cfg.models.generator.quantization:
+        quant = app_cfg.models.generator.quantization
+        if hasattr(quant, 'enabled') and quant.enabled:
+            gen_config_dict.update({
+                "quantization_bits": quant.bits if hasattr(quant, 'bits') else 4,
+                "quant_type": quant.quant_type if hasattr(quant, 'quant_type') else "nf4",
+                "compute_dtype": quant.compute_dtype if hasattr(quant, 'compute_dtype') else "bfloat16",
+                "use_double_quant": quant.use_double_quant if hasattr(quant, 'use_double_quant') else True,
+            })
+    
+    generator = create_generator(config=ModelConfig(**gen_config_dict))
 
     # 2. Retrieval Pipeline
     retrieval_pipeline: Optional[RetrievalPipeline] = None
@@ -522,21 +555,57 @@ def create_orchestrator_from_config(
     verification_pipeline = None
     if exp_spec.verification:
         from src.verification.pipeline import VerificationPipeline, VerificationPipelineConfig
+        from src.verification.entailment import EntailmentChecker, EntailmentConfig, MockEntailmentChecker
 
         ver_provider_type = "mock" if use_mock_models else app_cfg.models.verifier.model_type
-        verifier = create_verifier(
-            config=ModelConfig(
-                model_id=app_cfg.models.verifier.model_id,
-                provider_type=ver_provider_type,
-                device_map=app_cfg.models.verifier.device_map,
-                trust_remote_code=app_cfg.models.verifier.trust_remote_code,
-                max_new_tokens=app_cfg.models.verifier.generation.max_new_tokens,
-                temperature=app_cfg.models.verifier.generation.temperature,
-                top_p=app_cfg.models.verifier.generation.top_p,
+        
+        # Build complete verifier config with all YAML fields
+        ver_config_dict = {
+            "model_id": app_cfg.models.verifier.model_id,
+            "provider_type": ver_provider_type,
+            "revision": app_cfg.models.verifier.revision,
+            "device_map": app_cfg.models.verifier.device_map,
+            "trust_remote_code": app_cfg.models.verifier.trust_remote_code,
+            "max_new_tokens": app_cfg.models.verifier.generation.max_new_tokens,
+            "temperature": app_cfg.models.verifier.generation.temperature,
+            "top_p": app_cfg.models.verifier.generation.top_p,
+        }
+        
+        # Add quantization config if present and enabled
+        if hasattr(app_cfg.models.verifier, 'quantization') and app_cfg.models.verifier.quantization:
+            quant = app_cfg.models.verifier.quantization
+            if hasattr(quant, 'enabled') and quant.enabled:
+                ver_config_dict.update({
+                    "quantization_bits": quant.bits if hasattr(quant, 'bits') else 4,
+                    "quant_type": quant.quant_type if hasattr(quant, 'quant_type') else "nf4",
+                    "compute_dtype": quant.compute_dtype if hasattr(quant, 'compute_dtype') else "bfloat16",
+                    "use_double_quant": quant.use_double_quant if hasattr(quant, 'use_double_quant') else True,
+                })
+        
+        verifier = create_verifier(config=ModelConfig(**ver_config_dict))
+        
+        # Initialize entailment checker: use real NLI model unless mock mode
+        entailment_checker = None
+        if use_mock_models:
+            entailment_checker = MockEntailmentChecker()
+            logger.info("Using MockEntailmentChecker for testing (use_mock_models=True)")
+        else:
+            # Use real NLI model for production
+            entailment_config = EntailmentConfig(
+                model_id="cross-encoder/nli-deberta-v3-base",
+                threshold_supported=0.7,
+                threshold_contradicted=0.3,
+                device=app_cfg.models.verifier.device_map if hasattr(app_cfg.models.verifier, 'device_map') else "cpu",
             )
-        )
+            entailment_checker = EntailmentChecker(config=entailment_config)
+            logger.info("Using real EntailmentChecker with NLI model: %s", entailment_config.model_id)
+        
         ver_cfg = VerificationPipelineConfig()
-        verification_pipeline = VerificationPipeline(config=ver_cfg, verifier_provider=verifier)
+        verification_pipeline = VerificationPipeline(
+            config=ver_cfg,
+            verifier_provider=verifier,
+            entailment_checker=entailment_checker,
+        )
 
     # 4. Decision Engine
     decision_engine = None

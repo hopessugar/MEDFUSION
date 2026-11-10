@@ -63,32 +63,18 @@ def main():
     # Check for training data
     data_dir = Path(args.data_dir)
     train_file = data_dir / "raft_train.jsonl"
-    val_file = data_dir / "raft_val.jsonl"
+    val_file = data_dir / "raft_validation.jsonl"  # Fixed: correct filename
 
     if not train_file.exists():
-        print(f"\n⚠️  RAFT training data not found at {train_file}")
-        print("Run `python scripts/prepare_data.py --build-raft` first.")
-        print("\nCreating minimal RAFT sample data for testing...")
-
-        data_dir.mkdir(parents=True, exist_ok=True)
-        sample = {
-            "question": "What is the mechanism of action of metformin?",
-            "relevant_passages": [
-                {"passage_id": "p_0001", "doc_id": "doc1", "text": "Metformin decreases hepatic glucose production and increases insulin sensitivity."}
-            ],
-            "distractor_passages": [
-                {"passage_id": "p_0002", "doc_id": "doc2", "text": "Aspirin inhibits cyclooxygenase enzymes COX-1 and COX-2."},
-                {"passage_id": "p_0003", "doc_id": "doc3", "text": "Statins reduce cholesterol by inhibiting HMG-CoA reductase."},
-            ],
-            "answer": "Metformin works by decreasing hepatic glucose production and increasing insulin sensitivity in peripheral tissues [P1].",
-            "supporting_passage_ids": ["p_0001"],
-            "answerability": "answerable",
-        }
-        with open(train_file, "w") as f:
-            f.write(json.dumps(sample) + "\n")
-        with open(val_file, "w") as f:
-            f.write(json.dumps(sample) + "\n")
-        print(f"   Created sample RAFT data")
+        print(f"\n❌ ERROR: RAFT training data not found at {train_file}")
+        print(f"   Run: python scripts/prepare_data.py --include-pubmedqa --build-raft --output-dir {data_dir}")
+        print(f"   Or for testing: python scripts/prepare_data.py --smoke-test --build-raft --output-dir {data_dir}")
+        sys.exit(1)
+    
+    if not val_file.exists():
+        print(f"\n❌ ERROR: RAFT validation data not found at {val_file}")
+        print(f"   Run: python scripts/prepare_data.py --include-pubmedqa --build-raft --output-dir {data_dir}")
+        sys.exit(1)
 
     # Build RAFT dataset
     print("\n📦 Building RAFT dataset...")
@@ -122,9 +108,31 @@ def main():
                 train_examples.append(TrainingRAFTExample(**data))
 
     print(f"   Training examples: {len(train_examples)}")
+    
+    # Load validation examples
+    val_examples = []
+    with open(val_file) as f:
+        for line in f:
+            if line.strip():
+                data = json.loads(line)
+                # Convert passage dicts to Passage objects
+                if "relevant_passages" in data:
+                    data["relevant_passages"] = [
+                        Passage(**p) if isinstance(p, dict) else p
+                        for p in data["relevant_passages"]
+                    ]
+                if "distractor_passages" in data:
+                    data["distractor_passages"] = [
+                        Passage(**p) if isinstance(p, dict) else p
+                        for p in data["distractor_passages"]
+                    ]
+                val_examples.append(TrainingRAFTExample(**data))
+    
+    print(f"   Validation examples: {len(val_examples)}")
 
-    # Convert to HF dataset
+    # Convert to HF datasets
     train_dataset = builder.to_hf_dataset(train_examples)
+    val_dataset = builder.to_hf_dataset(val_examples) if val_examples else None
 
     # Initialize trainer
     print("\n🏋️ Initializing RAFT trainer...")
@@ -156,7 +164,7 @@ def main():
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        trainer.prepare(train_dataset, None)
+        trainer.prepare(train_dataset, val_dataset)  # Fixed: pass validation dataset
 
         log_training_config(
             {

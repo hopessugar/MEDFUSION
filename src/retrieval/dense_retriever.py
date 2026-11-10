@@ -160,6 +160,9 @@ class MedCPTRetriever:
 
     def encode_passages(self, passages: List[Passage]) -> np.ndarray:
         """Encode passages using MedCPT Article Encoder.
+        
+        MedCPT article encoder expects input formatted as: "[title] body"
+        This matches the PubMed article format used during MedCPT training.
 
         Args:
             passages: List of Passage objects.
@@ -172,11 +175,29 @@ class MedCPTRetriever:
 
         import torch
 
-        texts = [p.text for p in passages]
+        # Format passages according to MedCPT article encoder spec: [title] body
+        formatted_texts = []
+        for p in passages:
+            # Extract title from metadata or use doc_id as fallback
+            title = ""
+            if p.metadata:
+                title = p.metadata.get("title", "")
+            
+            # If no title, try to construct from doc_id or section
+            if not title:
+                if p.section and p.section != "General":
+                    title = p.section
+                else:
+                    title = p.doc_id or "Document"
+            
+            # Format: [title] body (matching MedCPT training format)
+            formatted_text = f"[{title}] {p.text}"
+            formatted_texts.append(formatted_text)
+        
         all_embeds: List[np.ndarray] = []
 
-        for i in range(0, len(texts), self.config.batch_size):
-            batch_texts = texts[i : i + self.config.batch_size]
+        for i in range(0, len(formatted_texts), self.config.batch_size):
+            batch_texts = formatted_texts[i : i + self.config.batch_size]
             encoded = self._article_tokenizer(
                 batch_texts,
                 truncation=True,

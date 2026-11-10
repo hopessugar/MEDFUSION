@@ -16,6 +16,11 @@ datasets>=3.0.0
 faiss-cpu>=1.8.0
 rank-bm25>=0.2.2
 
+# Document processing
+pymupdf>=1.24.0  # PDF extraction
+pdf2image>=1.17.0  # PDF to image conversion for OCR
+pytesseract>=0.3.13  # OCR engine (requires tesseract-ocr system package)
+
 # Web framework & serving
 fastapi>=0.115.0
 uvicorn>=0.32.0

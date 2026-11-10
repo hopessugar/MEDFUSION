@@ -64,37 +64,18 @@ def main():
     # Check for training data
     data_dir = Path(args.data_dir)
     train_file = data_dir / "sft_train.jsonl"
-    val_file = data_dir / "sft_val.jsonl"
+    val_file = data_dir / "sft_validation.jsonl"  # Fixed: correct filename
 
     if not train_file.exists():
-        print(f"\n⚠️  Training data not found at {train_file}")
-        print("Run `python scripts/prepare_data.py` first to create training data.")
-        print("\nAttempting to create sample training data for testing...")
-
-        # Create minimal sample data for testing
-        data_dir.mkdir(parents=True, exist_ok=True)
-        sample_examples = [
-            {
-                "question": "What is the mechanism of action of metformin?",
-                "context": "Metformin decreases hepatic glucose production and increases insulin sensitivity in peripheral tissues.",
-                "answer": "Metformin works by decreasing hepatic glucose production and increasing insulin sensitivity in peripheral tissues [P1].",
-                "citation_ids": ["P1"],
-                "answerability": "answerable",
-            },
-            {
-                "question": "What are the side effects of aspirin?",
-                "context": "Common side effects of aspirin include gastrointestinal irritation, bleeding risk, and allergic reactions.",
-                "answer": "Common side effects of aspirin include gastrointestinal irritation, increased bleeding risk, and allergic reactions [P1].",
-                "citation_ids": ["P1"],
-                "answerability": "answerable",
-            },
-        ]
-        with open(train_file, "w") as f:
-            for ex in sample_examples:
-                f.write(json.dumps(ex) + "\n")
-        with open(val_file, "w") as f:
-            f.write(json.dumps(sample_examples[0]) + "\n")
-        print(f"   Created sample data with {len(sample_examples)} examples")
+        print(f"\n❌ ERROR: Training data not found at {train_file}")
+        print(f"   Run: python scripts/prepare_data.py --include-pubmedqa --output-dir {data_dir}")
+        print(f"   Or for testing: python scripts/prepare_data.py --smoke-test --output-dir {data_dir}")
+        sys.exit(1)
+    
+    if not val_file.exists():
+        print(f"\n❌ ERROR: Validation data not found at {val_file}")
+        print(f"   Run: python scripts/prepare_data.py --include-pubmedqa --output-dir {data_dir}")
+        sys.exit(1)
 
     # Build SFT dataset
     print("\n📦 Building SFT dataset...")

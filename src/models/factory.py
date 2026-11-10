@@ -26,6 +26,8 @@ VerifierFactoryType = Type[BaseVerifierProvider]
 # Default provider registries
 _GENERATOR_REGISTRY: Dict[str, GeneratorFactoryType] = {
     "medgemma": MedGemmaProvider,
+    "medgemma-text": MedGemmaProvider,  # Explicit text-only variant
+    "medgemma-multimodal": MedGemmaProvider,  # Explicit multimodal variant
     "mock": MockGeneratorProvider,
     "mock_generator": MockGeneratorProvider,
 }

@@ -425,6 +425,11 @@ def main():
     parser.add_argument("--val-ratio", type=float, default=0.15)
     parser.add_argument("--test-ratio", type=float, default=0.15)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--smoke-test",
+        action="store_true",
+        help="TESTING ONLY: Use synthetic sample data instead of real datasets",
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -433,12 +438,27 @@ def main():
     # Collect examples
     all_examples = []
 
-    # Always include sample dataset
-    all_examples.extend(create_sample_medical_dataset())
+    # CRITICAL: Only use synthetic data in explicit smoke-test mode
+    if args.smoke_test:
+        print("\n⚠️  SMOKE TEST MODE: Using synthetic sample data")
+        print("    This is for testing only - DO NOT use for real training/evaluation!\n")
+        all_examples.extend(create_sample_medical_dataset())
+    else:
+        # Production mode: require at least one real dataset
+        if not args.include_pubmedqa:
+            print("\n❌ ERROR: No real datasets specified!")
+            print("   Either:")
+            print("   1. Add --include-pubmedqa for real PubMedQA data, OR")
+            print("   2. Use --smoke-test flag for synthetic testing data\n")
+            sys.exit(1)
+        
+        # Optionally include PubMedQA (only loaded in non-smoke-test mode)
+        if args.include_pubmedqa:
+            all_examples.extend(load_pubmedqa())
 
-    # Optionally include PubMedQA
-    if args.include_pubmedqa:
-        all_examples.extend(load_pubmedqa())
+    if not all_examples:
+        print("\n❌ ERROR: No examples collected!")
+        sys.exit(1)
 
     print(f"\n📊 Total examples: {len(all_examples)}")
 
@@ -509,6 +529,10 @@ def main():
             print(f"   RAFT {split_name} distribution: {dict(ans_dist)}")
 
     print(f"\n✅ Dataset preparation complete. Output: {output_dir}")
+    
+    if args.smoke_test:
+        print("\n⚠️  REMINDER: Smoke test mode was used - synthetic data only!")
+        print("    Do NOT use these files for real training or benchmarking.\n")
 
 
 if __name__ == "__main__":

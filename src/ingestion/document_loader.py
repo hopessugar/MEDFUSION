@@ -1,6 +1,6 @@
 """Document ingestion module for MedFusion-RAFT.
 
-Supports loading documents from plain text, Markdown, JSON, JSONL, and CSV files,
+Supports loading documents from plain text, Markdown, JSON, JSONL, CSV files, and PDFs,
 converting them into standardized Document schema objects.
 """
 
@@ -38,6 +38,10 @@ class DocumentLoaderConfig(BaseModel):
         default=True,
         description="Whether to skip documents with empty text content",
     )
+    enable_pdf: bool = Field(
+        default=True,
+        description="Whether to enable PDF processing"
+    )
 
 
 class DocumentLoader:
@@ -49,6 +53,7 @@ class DocumentLoader:
         - JSON (.json)
         - JSON Lines (.jsonl)
         - Delimited text (.csv, .tsv)
+        - PDF documents (.pdf) - requires PyMuPDF
     """
 
     def __init__(self, config: Optional[DocumentLoaderConfig] = None) -> None:
@@ -58,6 +63,18 @@ class DocumentLoader:
             config: Optional configuration settings. Uses defaults if None.
         """
         self.config = config or DocumentLoaderConfig()
+        self._pdf_processor = None
+        
+        # Initialize PDF processor if enabled
+        if self.config.enable_pdf:
+            try:
+                from src.ingestion.pdf_processor import PDFProcessor, PDFProcessorConfig
+                self._pdf_processor = PDFProcessor(PDFProcessorConfig())
+                logger.info("PDF processing enabled")
+            except ImportError as e:
+                logger.warning("PDF processing disabled: %s", e)
+                self.config.enable_pdf = False
+        
         logger.debug("Initialized DocumentLoader with config: %s", self.config)
 
     @staticmethod
@@ -112,6 +129,8 @@ class DocumentLoader:
             return self._load_jsonl(path)
         elif suffix in [".csv", ".tsv"]:
             return self._load_csv(path, delimiter="\t" if suffix == ".tsv" else ",")
+        elif suffix == ".pdf":
+            return self._load_pdf(path)
         else:
             raise ValueError(f"Unsupported file format: {suffix} for path {path}")
 
@@ -136,7 +155,7 @@ class DocumentLoader:
             raise NotADirectoryError(f"Directory not found: {path}")
 
         valid_exts = {ext.lower() for ext in extensions} if extensions else {
-            ".txt", ".text", ".md", ".markdown", ".json", ".jsonl", ".csv", ".tsv"
+            ".txt", ".text", ".md", ".markdown", ".json", ".jsonl", ".csv", ".tsv", ".pdf"
         }
 
         pattern = "**/*" if recursive else "*"
@@ -328,3 +347,27 @@ class DocumentLoader:
             metadata=metadata,
             pages=pages,
         )
+
+    def _load_pdf(self, path: Path) -> List[Document]:
+        """Load a PDF file into a Document with page-level structure.
+        
+        Args:
+            path: Path to PDF file
+            
+        Returns:
+            List containing single Document (or empty if PDF processing disabled)
+            
+        Raises:
+            ValueError: If PDF processing is disabled or fails
+        """
+        if not self.config.enable_pdf or self._pdf_processor is None:
+            raise ValueError(
+                "PDF processing is disabled. Install PyMuPDF: pip install pymupdf"
+            )
+        
+        try:
+            doc = self._pdf_processor.process(path)
+            return [doc]
+        except Exception as exc:
+            logger.error("Failed to process PDF %s: %s", path, exc, exc_info=True)
+            raise

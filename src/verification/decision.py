@@ -34,6 +34,11 @@ class DecisionPolicyConfig(BaseModel):
     accept_min_score: float = 0.7
     revise_min_score: float = 0.4
     abstain_below: float = 0.4
+    # Medical safety thresholds
+    max_unsupported_ratio: float = 0.3  # Max 30% unsupported claims
+    max_unsupported_absolute: int = 2   # Max 2 unsupported claims regardless of ratio
+    allow_partially_supported: bool = True  # Allow partially supported in final answer
+    require_critical_claims_supported: bool = True  # High-confidence claims must be supported
     abstention: AbstentionConfig = Field(default_factory=AbstentionConfig)
 
 
@@ -181,7 +186,14 @@ class DecisionEngine:
         num_evidence_passages: int,
         current_revision_count: int = 0,
     ) -> PipelineDecision:
-        """Make an accept/revise/abstain decision.
+        """Make an accept/revise/abstain decision with medical safety-first policy.
+
+        Decision logic prioritizes patient safety:
+        1. Any contradicted claims → immediate ABSTAIN
+        2. Excessive unsupported claims → ABSTAIN (configurable thresholds)
+        3. Insufficient evidence → ABSTAIN
+        4. Composite score with heavy weight on verification
+        5. Revision opportunity if score in acceptable range
 
         Args:
             answer: The generated answer.
@@ -218,6 +230,53 @@ class DecisionEngine:
                 revision_count=current_revision_count,
             )
 
+        # MEDICAL SAFETY CHECK 1: Any contradicted claims → immediate ABSTAIN
+        if verification.contradicted_claims > 0:
+            reasoning_parts.append(
+                f"SAFETY: {verification.contradicted_claims} contradicted claim(s) detected - "
+                "cannot provide safe answer"
+            )
+            return PipelineDecision(
+                decision=DecisionType.ABSTAIN,
+                score=0.0,
+                reasoning=" | ".join(reasoning_parts),
+                revision_count=current_revision_count,
+            )
+
+        # MEDICAL SAFETY CHECK 2: Excessive unsupported claims
+        total_claims = len(verification.claim_results)
+        if total_claims > 0:
+            unsupported_ratio = verification.unsupported_claims / total_claims
+            
+            # Check both ratio and absolute count
+            if (
+                unsupported_ratio > self.config.max_unsupported_ratio
+                or verification.unsupported_claims > self.config.max_unsupported_absolute
+            ):
+                # If we haven't tried revision yet and are below max attempts, try revision
+                if current_revision_count < self.config.abstention.max_revision_attempts:
+                    reasoning_parts.append(
+                        f"SAFETY: Too many unsupported claims ({verification.unsupported_claims}/{total_claims}, "
+                        f"{unsupported_ratio:.1%}) - attempting revision"
+                    )
+                    return PipelineDecision(
+                        decision=DecisionType.REVISE,
+                        score=0.3,
+                        reasoning=" | ".join(reasoning_parts),
+                        revision_count=current_revision_count,
+                    )
+                else:
+                    reasoning_parts.append(
+                        f"SAFETY: Too many unsupported claims ({verification.unsupported_claims}/{total_claims}, "
+                        f"{unsupported_ratio:.1%}) - revisions exhausted"
+                    )
+                    return PipelineDecision(
+                        decision=DecisionType.ABSTAIN,
+                        score=0.2,
+                        reasoning=" | ".join(reasoning_parts),
+                        revision_count=current_revision_count,
+                    )
+
         # Compute composite score
         composite_score = self._compute_composite_score(
             answer, verification, num_evidence_passages
@@ -227,58 +286,57 @@ class DecisionEngine:
         calibrated_score = self.calibration.calibrate(composite_score)
         
         reasoning_parts.append(
-            f"Raw score: {composite_score:.3f}, "
-            f"Calibrated score: {calibrated_score:.3f}"
+            f"Composite: {composite_score:.3f} → Calibrated: {calibrated_score:.3f}"
         )
         reasoning_parts.append(
-            f"Verification: {verification.supported_claims} supported, "
-            f"{verification.unsupported_claims} unsupported, "
-            f"{verification.contradicted_claims} contradicted"
+            f"Claims: {verification.supported_claims}✓ {verification.unsupported_claims}✗ "
+            f"{verification.contradicted_claims}⊗ (of {total_claims} total)"
         )
 
-        # Check for contradictions (always abstain if any contradicted claims)
-        if verification.contradicted_claims > 0:
-            reasoning_parts.append("Contradicted claims detected")
-            return PipelineDecision(
-                decision=DecisionType.ABSTAIN,
-                score=calibrated_score,
-                reasoning=" | ".join(reasoning_parts),
-                revision_count=current_revision_count,
-            )
+        # Detailed claim status breakdown
+        from src.models.schemas import ClaimSupportStatus
+        claim_statuses = {}
+        for claim in verification.claim_results:
+            status = claim.support_status.value
+            claim_statuses[status] = claim_statuses.get(status, 0) + 1
+        
+        status_summary = ", ".join(
+            f"{count} {status}" for status, count in sorted(claim_statuses.items())
+        )
+        reasoning_parts.append(f"Breakdown: {status_summary}")
 
-        # Decision based on calibrated score
+        # Decision based on calibrated score with medical safety considerations
         if calibrated_score >= self.config.accept_min_score:
             decision = DecisionType.ACCEPT
             reasoning_parts.append(
-                f"Score {calibrated_score:.3f} >= accept threshold "
-                f"{self.config.accept_min_score}"
+                f"Score {calibrated_score:.3f} ≥ accept threshold {self.config.accept_min_score:.2f}"
             )
         elif calibrated_score >= self.config.revise_min_score:
             # Can we still revise?
             if current_revision_count < self.config.abstention.max_revision_attempts:
                 decision = DecisionType.REVISE
                 reasoning_parts.append(
-                    f"Score {calibrated_score:.3f} in revision range, "
-                    f"revision {current_revision_count + 1}/"
-                    f"{self.config.abstention.max_revision_attempts}"
+                    f"Score {calibrated_score:.3f} in revision range "
+                    f"[{self.config.revise_min_score:.2f}, {self.config.accept_min_score:.2f}), "
+                    f"revision {current_revision_count + 1}/{self.config.abstention.max_revision_attempts}"
                 )
             else:
                 # Exhausted revision attempts
                 if calibrated_score >= self.config.abstain_below:
                     decision = DecisionType.ACCEPT
                     reasoning_parts.append(
-                        "Revision attempts exhausted, accepting with lower confidence"
+                        f"Revisions exhausted, accepting with moderate confidence "
+                        f"(score {calibrated_score:.3f} ≥ floor {self.config.abstain_below:.2f})"
                     )
                 else:
                     decision = DecisionType.ABSTAIN
                     reasoning_parts.append(
-                        "Revision attempts exhausted, score too low to accept"
+                        f"Revisions exhausted, score {calibrated_score:.3f} < floor {self.config.abstain_below:.2f}"
                     )
         else:
             decision = DecisionType.ABSTAIN
             reasoning_parts.append(
-                f"Score {calibrated_score:.3f} < abstain threshold "
-                f"{self.config.abstain_below}"
+                f"Score {calibrated_score:.3f} < abstain threshold {self.config.abstain_below:.2f}"
             )
 
         return PipelineDecision(
@@ -296,40 +354,79 @@ class DecisionEngine:
     ) -> float:
         """Compute a composite confidence score from multiple signals.
 
-        Combines:
-        - Verification support ratio (weight: 0.5)
-        - Generator confidence (weight: 0.2, treated with skepticism)
-        - Evidence availability signal (weight: 0.15)
-        - Citation quality (weight: 0.15)
+        Medical safety-first scoring combines:
+        - Verification support ratio with claim-level granularity (weight: 0.50)
+        - Generator confidence, heavily discounted for overconfidence (weight: 0.20)
+        - Evidence availability and quality signal (weight: 0.15)
+        - Citation precision (weight: 0.15)
+
+        Claim status value mapping:
+        - SUPPORTED: 1.0 (full value)
+        - PARTIALLY_SUPPORTED: 0.5 (half value)
+        - INSUFFICIENT_EVIDENCE: 0.2 (small credit for non-contradicted)
+        - UNSUPPORTED: 0.0 (no value)
+        - CONTRADICTED: -0.5 (penalty)
+
+        Args:
+            answer: Generated answer with self-reported confidence.
+            verification: Verification result with claim-level analysis.
+            num_evidence: Number of retrieved evidence passages.
+
+        Returns:
+            Composite score in [0.0, 1.0].
         """
-        # Verification support ratio
+        from src.models.schemas import ClaimSupportStatus
+        
         total_claims = len(verification.claim_results)
+        
+        # Component 1: Claim-level verification score with granular weighting
         if total_claims > 0:
-            support_ratio = verification.overall_score
+            claim_value_sum = 0.0
+            for claim in verification.claim_results:
+                if claim.support_status == ClaimSupportStatus.SUPPORTED:
+                    claim_value_sum += 1.0
+                elif claim.support_status == ClaimSupportStatus.PARTIALLY_SUPPORTED:
+                    claim_value_sum += 0.5
+                elif claim.support_status == ClaimSupportStatus.INSUFFICIENT_EVIDENCE:
+                    claim_value_sum += 0.2  # Small credit for not being contradicted
+                elif claim.support_status == ClaimSupportStatus.UNSUPPORTED:
+                    claim_value_sum += 0.0
+                elif claim.support_status == ClaimSupportStatus.CONTRADICTED:
+                    claim_value_sum -= 0.5  # Penalty for contradiction
+            
+            # Normalize to [0, 1] range
+            # Max possible: total_claims * 1.0, Min possible: total_claims * -0.5
+            # Shift and scale to [0, 1]
+            normalized_claim_score = (claim_value_sum + 0.5 * total_claims) / (1.5 * total_claims)
+            verification_score = float(np.clip(normalized_claim_score, 0.0, 1.0))
         else:
-            support_ratio = 0.0
+            verification_score = 0.0
 
-        # Generator self-reported confidence is known to exhibit severe overconfidence
-        # in medical LLMs (Kadavath et al., 2022). We cap at 0.90 and discount by 0.80
-        # (maximum contribution = 0.72) to prioritize evidence-grounded verification.
-        gen_confidence = min(answer.confidence or 0.5, 0.9) * 0.8
+        # Component 2: Generator self-reported confidence
+        # Medical LLMs exhibit severe overconfidence (Kadavath et al., 2022; Tian et al., 2023).
+        # We apply aggressive discounting: cap at 0.90, multiply by 0.75 (max contribution = 0.675)
+        # to prioritize evidence-grounded verification over self-assessment.
+        gen_confidence = min(answer.confidence or 0.5, 0.9) * 0.75
 
-        # Evidence availability
-        evidence_signal = min(num_evidence / 5.0, 1.0)
+        # Component 3: Evidence availability and quality signal
+        # Use logarithmic scaling to reduce impact of excessive passages
+        # 1-2 passages: low signal, 3-5 passages: good, 6+ passages: diminishing returns
+        evidence_signal = float(np.clip(np.log1p(num_evidence) / np.log1p(5.0), 0.0, 1.0))
 
-        # Citation quality from verification
+        # Component 4: Citation precision (supported claims with valid citations)
+        # This rewards explicit grounding beyond just verification
         if total_claims > 0:
-            citation_quality = (
-                verification.supported_claims / total_claims
-            )
+            citation_quality = verification.supported_claims / total_claims
         else:
             citation_quality = 0.0
 
+        # Weighted combination
+        # Prioritize verification (50%), evidence-grounding (15% + 15% = 30%), then generator (20%)
         composite = (
-            0.50 * support_ratio
-            + 0.20 * gen_confidence
-            + 0.15 * evidence_signal
-            + 0.15 * citation_quality
+            0.50 * verification_score      # Primary: claim verification
+            + 0.20 * gen_confidence         # Secondary: discounted self-confidence
+            + 0.15 * evidence_signal        # Tertiary: evidence availability
+            + 0.15 * citation_quality       # Tertiary: citation precision
         )
 
         return float(np.clip(composite, 0.0, 1.0))

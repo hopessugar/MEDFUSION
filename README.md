@@ -422,16 +422,16 @@ docker compose --profile gpu up
 </tr>
 <tr>
 <td>🎯 <b>Generator</b></td>
-<td><code>google/medgemma-1.5-4b-it</code></td>
-<td>4B</td>
-<td>Gemma 3</td>
+<td><code>google/medgemma-27b-text-it</code></td>
+<td>27B</td>
+<td>Gemma 2</td>
 <td>4-bit NF4 QLoRA</td>
 </tr>
 <tr>
 <td>✅ <b>Verifier</b></td>
-<td><code>Qwen/Qwen3.5-9B</code></td>
-<td>9B</td>
-<td>Qwen 3.5</td>
+<td><code>Qwen/Qwen3.6-27B</code></td>
+<td>27B</td>
+<td>Qwen 3.6</td>
 <td>4-bit NF4</td>
 </tr>
 <tr>
@@ -439,21 +439,28 @@ docker compose --profile gpu up
 <td><code>ncbi/MedCPT-*-Encoder</code></td>
 <td>~110M each</td>
 <td>BERT</td>
-<td>FP32</td>
+<td>FP16</td>
 </tr>
 <tr>
 <td>🎯 <b>Reranker</b></td>
 <td><code>ncbi/MedCPT-Cross-Encoder</code></td>
 <td>~110M</td>
 <td>BERT</td>
+<td>FP16</td>
+</tr>
+<tr>
+<td>📊 <b>NLI Entailment</b></td>
+<td><code>cross-encoder/nli-deberta-v3-base</code></td>
+<td>~435M</td>
+<td>DeBERTa-v3</td>
 <td>FP32</td>
 </tr>
 <tr>
-<td>📊 <b>Entailment</b></td>
-<td><code>cross-encoder/nli-deberta-v3-base</code></td>
-<td>~86M</td>
-<td>DeBERTa-v3</td>
-<td>FP32</td>
+<td>🔎 <b>Sparse Retrieval</b></td>
+<td>BM25 (Rank-BM25)</td>
+<td>-</td>
+<td>TF-IDF</td>
+<td>-</td>
 </tr>
 </table>
 
@@ -481,6 +488,10 @@ docker compose --profile gpu up
 <td>32</td>
 </tr>
 <tr>
+<td><b>Target Modules</b></td>
+<td colspan="2">q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj</td>
+</tr>
+<tr>
 <td><b>Learning Rate</b></td>
 <td>2e-5</td>
 <td>1e-5</td>
@@ -504,6 +515,11 @@ docker compose --profile gpu up
 <td><b>Optimizer</b></td>
 <td>Paged AdamW 8-bit</td>
 <td>Paged AdamW 8-bit</td>
+</tr>
+<tr>
+<td><b>VRAM Required</b></td>
+<td>~11-12 GB</td>
+<td>~11-12 GB</td>
 </tr>
 </table>
 
@@ -580,34 +596,113 @@ docker compose --profile gpu up
 </tr>
 <tr>
 <td>⚡ <b>Inference Only</b></td>
-<td>16 GB</td>
-<td>16 GB</td>
-<td>30 GB</td>
-<td>Production Deployment</td>
-</tr>
-<tr>
-<td>🎓 <b>Single Model Training</b></td>
 <td>24 GB</td>
 <td>32 GB</td>
 <td>50 GB</td>
-<td>Fine-tuning SFT/RAFT</td>
+<td>Production (27B models)</td>
 </tr>
 <tr>
-<td>🚀 <b>Full Pipeline</b></td>
+<td>🎓 <b>Training (QLoRA)</b></td>
+<td>16 GB</td>
+<td>32 GB</td>
+<td>100 GB</td>
+<td>Fine-tuning 27B with 4-bit</td>
+</tr>
+<tr>
+<td>🚀 <b>Full Pipeline + Retrieval</b></td>
 <td>40+ GB</td>
 <td>64 GB</td>
-<td>100 GB</td>
-<td>Dual model + retrieval</td>
+<td>150 GB</td>
+<td>Dual 27B model + all features</td>
 </tr>
 </table>
 
-**Recommended GPUs:** NVIDIA A100 (40GB/80GB), H100, or RTX 4090/3090
+**Recommended GPUs:**
+- **Training**: RTX 4080/4090 (16GB), A4000 (16GB), L4 (24GB), RTX A5000 (24GB)
+- **Inference**: RTX 4090 (24GB), A5000 (24GB), L40 (48GB), A100 (40GB/80GB), H100 (80GB)
+- **Development/Testing**: Any CPU (mock mode)
+
+**Note**: 27B models in 4-bit quantization require ~7.5GB base + adapters + activations
 
 </div>
 
 ---
 
-## 📊 Reproducibility
+## 🛡️ Production-Ready Features
+
+<div align="center">
+
+### ✅ Safety & Security
+
+<table>
+<tr>
+<td width="50%">
+
+**Medical Safety**
+- ✅ Verification fail-safe (Phase 2.1)
+  - Exceptions → ABSTAIN (not fail-open)
+  - Zero tolerance for contradicted claims
+- ✅ Claim-level decision logic (Phase 5.2)
+  - Granular scoring (SUPPORTED=1.0, CONTRADICTED=-0.5)
+  - Max 30% unsupported ratio threshold
+  - Max 2 absolute unsupported claims
+- ✅ Multi-stage verification
+  - Citation validation (deterministic)
+  - NLI entailment (DeBERTa-v3)
+  - LLM verification (Qwen 27B)
+
+</td>
+<td width="50%">
+
+**Security**
+- ✅ Path traversal protection (Phase 7.1)
+  - File access allowlist (data/, experiments/)
+  - Blocks `../../etc/passwd` attacks
+  - Validated path resolution
+- ✅ CORS configuration (Phase 7.1)
+  - Restrictive localhost-only default
+  - Explicit production configuration
+  - No wildcard origins in production
+- ✅ Input validation
+  - Request schema validation
+  - File format verification
+  - Size limits enforced
+
+</td>
+</tr>
+</table>
+
+### 🎯 Data Quality
+
+- ✅ **No Silent Fallbacks** (Phases 4.1, 6.1)
+  - Explicit --smoke-test flag required for synthetic data
+  - Clear error messages with actionable instructions
+  - Fail-fast on missing datasets
+- ✅ **Real PDF Ingestion** (Phase 3.1)
+  - PyMuPDF extraction with OCR fallback
+  - Page-aware chunking with metadata preservation
+  - Document structure maintenance
+- ✅ **Correct MedCPT Format** (Phase 3.2)
+  - Article encoder: "[title] body" format
+  - Matches MedCPT training distribution
+  - Title extraction from metadata
+
+### 📊 Test Coverage
+
+- ✅ **Comprehensive Test Plan** (Phase 8.1)
+  - 8 test modules documented
+  - 70%+ coverage target (85%+ critical paths)
+  - Critical tests implemented
+- ✅ **CI/CD Ready**
+  - pytest configuration
+  - GitHub Actions template
+  - Automated test execution
+
+</div>
+
+---
+
+## 📚 Documentation
 
 <div align="center">
 

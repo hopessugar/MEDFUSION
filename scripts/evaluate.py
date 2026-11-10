@@ -69,21 +69,35 @@ def create_synthetic_benchmark_dataset() -> list[DatasetExample]:
     ]
 
 
-def load_dataset_from_file(data_path: Path) -> list[DatasetExample]:
+def load_dataset_from_file(data_path: Path, allow_synthetic: bool = False) -> list[DatasetExample]:
     """Load benchmark dataset from JSON or JSONL file.
 
     Args:
         data_path: Path to dataset file.
+        allow_synthetic: If True, allows synthetic fallback data for testing.
 
     Returns:
         List of parsed DatasetExample objects.
+
+    Raises:
+        FileNotFoundError: If dataset file does not exist and synthetic data not allowed.
+        ValueError: If dataset file is empty or malformed.
     """
     if not data_path.is_file():
-        logger.warning(
-            "Dataset file not found at %s. Falling back to synthetic clinical benchmark set.",
-            data_path,
-        )
-        return create_synthetic_benchmark_dataset()
+        if allow_synthetic:
+            logger.warning(
+                "Dataset file not found at %s. Using synthetic benchmark set (--smoke-test mode).",
+                data_path,
+            )
+            return create_synthetic_benchmark_dataset()
+        else:
+            raise FileNotFoundError(
+                f"Evaluation dataset not found: {data_path}\n\n"
+                f"Please prepare your evaluation dataset first:\n"
+                f"  python scripts/prepare_data.py --dataset <name> --output-dir data/processed\n\n"
+                f"Or use --smoke-test flag for synthetic test data:\n"
+                f"  python scripts/evaluate.py --smoke-test --experiment-id {data_path.stem}"
+            )
 
     examples: list[DatasetExample] = []
     try:
@@ -101,12 +115,36 @@ def load_dataset_from_file(data_path: Path) -> list[DatasetExample]:
                 elif isinstance(data, dict) and "examples" in data:
                     for item in data["examples"]:
                         examples.append(DatasetExample(**item))
+        
+        if not examples:
+            if allow_synthetic:
+                logger.warning(
+                    "Dataset file %s is empty. Using synthetic benchmark set (--smoke-test mode).",
+                    data_path,
+                )
+                return create_synthetic_benchmark_dataset()
+            else:
+                raise ValueError(
+                    f"Evaluation dataset is empty: {data_path}\n\n"
+                    f"Please ensure your dataset contains valid examples."
+                )
+        
         logger.info("Loaded %d benchmark examples from %s", len(examples), data_path)
-    except Exception as exc:
-        logger.error("Failed to parse dataset from %s: %s", data_path, exc, exc_info=True)
-        return create_synthetic_benchmark_dataset()
-
-    return examples if examples else create_synthetic_benchmark_dataset()
+        return examples
+        
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        if allow_synthetic:
+            logger.error(
+                "Failed to parse dataset from %s: %s. Using synthetic benchmark set (--smoke-test mode).",
+                data_path,
+                exc,
+            )
+            return create_synthetic_benchmark_dataset()
+        else:
+            raise ValueError(
+                f"Failed to parse evaluation dataset from {data_path}: {exc}\n\n"
+                f"Please ensure your dataset is valid JSON or JSONL format with required fields."
+            ) from exc
 
 
 def parse_args() -> argparse.Namespace:
@@ -130,7 +168,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--data-path",
         type=str,
-        default="./data/processed/eval_test.json",
+        default="./data/processed/test.jsonl",
         help="Path to evaluation benchmark dataset (JSON or JSONL)",
     )
     parser.add_argument(
@@ -144,6 +182,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help="Use mock providers for generator and verifier (recommended for CPU testing)",
+    )
+    parser.add_argument(
+        "--smoke-test",
+        action="store_true",
+        default=False,
+        help="Use synthetic test data instead of real evaluation dataset (for testing only)",
     )
     return parser.parse_args()
 
@@ -188,7 +232,13 @@ def main() -> int:
         )
 
     # 2. Load dataset
-    test_data = load_dataset_from_file(data_path)
+    test_data = load_dataset_from_file(data_path, allow_synthetic=args.smoke_test)
+    
+    if args.smoke_test:
+        logger.warning(
+            "Running evaluation with synthetic test data (--smoke-test mode). "
+            "Results are not representative of real performance."
+        )
 
     # 3. Instantiate Runner
     runner = EvaluationRunner(

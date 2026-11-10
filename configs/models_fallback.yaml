@@ -1,0 +1,55 @@
+# FALLBACK CONFIGURATION: Smaller models for resource-constrained systems
+# Use this when available VRAM < 24GB or for faster development iteration
+# To use: --config-profile fallback or set MODEL_CONFIG_PROFILE=fallback
+
+generator:
+  # 4B multimodal variant (faster, less capable than 27B text-only)
+  model_id: "google/medgemma-1.5-4b-it"
+  model_type: "medgemma"
+  revision: "main"
+  quantization:
+    enabled: true
+    bits: 4
+    quant_type: "nf4"
+    compute_dtype: "bfloat16"
+    use_double_quant: true
+  generation:
+    max_new_tokens: 512
+    temperature: 0.1
+    top_p: 0.9
+    do_sample: true
+    repetition_penalty: 1.1
+  device_map: "auto"
+  trust_remote_code: true
+  # Estimated VRAM with 4-bit quantization: ~3GB
+
+verifier:
+  # 9B variant (lighter than 27B, still very capable)
+  model_id: "Qwen/Qwen3.5-9B"
+  model_type: "qwen"
+  revision: "main"
+  load_as_causal_lm: true
+  quantization:
+    enabled: true
+    bits: 4
+    quant_type: "nf4"
+    compute_dtype: "bfloat16"
+    use_double_quant: true
+  generation:
+    max_new_tokens: 1024
+    temperature: 0.1
+    top_p: 0.9
+    do_sample: true
+  device_map: "auto"
+  trust_remote_code: true
+  # Estimated VRAM with 4-bit: ~5GB
+
+retrieval:
+  query_encoder: "ncbi/MedCPT-Query-Encoder"
+  article_encoder: "ncbi/MedCPT-Article-Encoder"
+  cross_encoder: "ncbi/MedCPT-Cross-Encoder"
+  embedding_dim: 768
+  max_query_length: 64
+  max_article_length: 512
+
+# Total VRAM estimate for fallback config: ~8GB (can run on RTX 3060, RTX 4060 Ti, etc.)
